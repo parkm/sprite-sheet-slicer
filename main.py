@@ -57,6 +57,11 @@ class DrawPanel(wx.Panel):
 
     def onEraseBack(self, e): pass # Do nothing, to avoid flashing on MSWin
 
+    def export(self):
+        img = self.bitmap.ConvertToImage()
+        img = img.GetSubImage(wx.Rect(self.selX, self.selY, self.selW, self.selH))
+        img.SaveFile('slice.png', wx.BITMAP_TYPE_PNG)
+
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
         wx.Frame.__init__(self, parent, title=title, size=(640, 480))
@@ -89,16 +94,21 @@ class MainWindow(wx.Frame):
 
         #pan = wx.Panel(self)
         #button = wx.Button(pan)
-        testo = wx.Panel(self)
-        wx.Button(testo, label='push')
-        frame = DrawPanel(self)
+        leftPanel = wx.Panel(self)
+        self.drawPanel = DrawPanel(self)
+
+        button = wx.Button(leftPanel, label='export')
+        button.Bind(wx.EVT_BUTTON, self.onExportButton)
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(testo, 0, wx.EXPAND)
-        sizer.Add(frame, 2, wx.EXPAND)
+        sizer.Add(leftPanel, 0, wx.EXPAND)
+        sizer.Add(self.drawPanel, 2, wx.EXPAND)
         self.SetSizer(sizer)
 
         self.Show(True)
+
+    def onExportButton(self, e):
+        self.drawPanel.export()
 
     def onAbout(self, e):
         dlg = wx.MessageDialog(self, 'This is where the about stuff goes', 'About geo', wx.OK)
