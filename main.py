@@ -21,8 +21,12 @@ class DrawPanel(wx.Panel):
 
         self.resize = False
 
+        self.selectors = []
+
     def onMouseUp(self, e):
         self.resize = False
+        self.selectors.append(wx.Rect(self.selX, self.selY, self.selW, self.selH))
+        print(self.selectors)
 
     def onMouseDown(self, e):
         self.resize = True
@@ -39,12 +43,9 @@ class DrawPanel(wx.Panel):
         dc = wx.PaintDC(self)
         dc.Clear()
 
-        dc.BeginDrawing()
-        dc.SetPen(wx.TRANSPARENT_PEN)
-        dc.SetBrush(wx.Brush(wx.Color(70, 70, 70, 0)))
-        # set x, y, w, h for rectangle
-        dc.DrawRectangle(self.selX, self.selY, self.selW, self.selH)
-        dc.EndDrawing()
+        self.drawSelectorBack(dc, self.selX, self.selY, self.selW, self.selH)
+        for rect in self.selectors:
+            self.drawSelectorBack(dc, rect.X, rect.Y, rect.Width, rect.Height)
 
         dc.DrawBitmap(self.bitmap, 0, 0);
 
@@ -56,6 +57,14 @@ class DrawPanel(wx.Panel):
         dc.EndDrawing()
 
     def onEraseBack(self, e): pass # Do nothing, to avoid flashing on MSWin
+
+    def drawSelectorBack(self, dc, x, y, w, h):
+        dc.BeginDrawing()
+        dc.SetPen(wx.TRANSPARENT_PEN)
+        dc.SetBrush(wx.Brush(wx.Color(70, 70, 70, 0)))
+        # set x, y, w, h for rectangle
+        dc.DrawRectangle(x, y, w, h)
+        dc.EndDrawing()
 
     def export(self):
         img = self.bitmap.ConvertToImage()
