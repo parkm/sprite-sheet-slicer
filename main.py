@@ -46,6 +46,7 @@ class DrawPanel(wx.Panel):
         self.resize = False
         if self.newSelector:
             rect = self.newSelector.rect
+
             if (abs(rect.Width) < 1 and abs(rect.Height) < 1): return;
 
             # If width is negative then swap x and width.
@@ -58,10 +59,39 @@ class DrawPanel(wx.Panel):
                 self.currentSelection.Height = abs(self.currentSelection.Height)
                 self.currentSelection.Y -= self.currentSelection.Height
 
-            self.newSelector.rect = wx.Rect(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height)
+
+            img = self.bitmap.ConvertToImage().GetSubImage(wx.Rect(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height))
+
+            # Returns the amount of pixels you must add/subtract to crop out the alpha.
+            def getCropAmount(yFirst, reverse):
+                out = 0
+                firstRange = range(img.Height if yFirst else img.Width)
+                if reverse: firstRange = reversed(firstRange)
+                for i in firstRange:
+                    transparent = None
+                    for j in range(img.Width if yFirst else img.Height):
+                        if yFirst:
+                            y = i
+                            x = j
+                        else:
+                            x = i
+                            y = j
+                        transparent = (img.GetAlpha(x, y) <= 0)
+                        if not transparent: break
+                    if not transparent: break
+                    out += 1
+                return out
+            left = getCropAmount(False, False)
+            top = getCropAmount(True, False)
+            right = getCropAmount(False, True)
+            bottom = getCropAmount(True, True)
+
+            #self.newSelector.rect = wx.Rect(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height)
+            self.newSelector.rect = wx.Rect(self.currentSelection.X + left, self.currentSelection.Y + top, self.currentSelection.Width - left - right, self.currentSelection.Height - top - bottom)
             self.selectors.append(self.newSelector)
             self.newSelector = None
             self.currentSelection = wx.Rect()
+            self.Refresh()
 
     def onMouseDown(self, e):
         self.SetFocus()
