@@ -1,60 +1,112 @@
 import wx
+import json
 from wx import glcanvas
 from OpenGL.GL import *
+
+class Selector():
+    def __init__(self, x, y, w, h):
+        self.rect = wx.Rect(x, y, w, h)
+
+    # Returns True if point is inside rect.
+    def contains(self, x, y):
+        return self.rect.ContainsXY(x, y)
 
 class DrawPanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
+
         self.Bind(wx.EVT_PAINT, self.onPaint)
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.onEraseBack)
         self.Bind(wx.EVT_MOTION, self.onMouseMove)
         self.Bind(wx.EVT_LEFT_DOWN, self.onMouseDown)
         self.Bind(wx.EVT_LEFT_UP, self.onMouseUp)
+        self.Bind(wx.EVT_KEY_DOWN, self.onKeyDown)
+
         self.bitmap = wx.Bitmap('cindy.png')
         self.SetBackgroundColour('gray')
 
-        self.selX = 100
-        self.selY = 100
-        self.selW = 150
-        self.selH = 150
+        self.currentSelection = wx.Rect()
         self.SetDoubleBuffered(True)
 
         self.resize = False
 
         self.selectors = []
+        self.activeSelector = None
+
+    def onKeyDown(self, e):
+        keyCode = e.GetKeyCode()
+        if keyCode == wx.WXK_DELETE:
+            if self.activeSelector:
+                self.selectors.remove(self.activeSelector)
+                self.activeSelector = None
+                self.Refresh()
+        e.Skip()
 
     def onMouseUp(self, e):
         self.resize = False
-        self.selectors.append(wx.Rect(self.selX, self.selY, self.selW, self.selH))
-        print(self.selectors)
+        if self.newSelector:
+            rect = self.newSelector.rect
+            if (abs(rect.Width) < 1 and abs(rect.Height) < 1): return;
+
+            # If width is negative then swap x and width.
+            if rect.Width < 0:
+                self.currentSelection.Width = abs(self.currentSelection.Width)
+                self.currentSelection.X -= self.currentSelection.Width
+
+            # If height is negative then swap y and height.
+            if rect.Height < 0:
+                self.currentSelection.Height = abs(self.currentSelection.Height)
+                self.currentSelection.Y -= self.currentSelection.Height
+
+            self.newSelector.rect = wx.Rect(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height)
+            self.selectors.append(self.newSelector)
+            self.newSelector = None
+            self.currentSelection = wx.Rect()
 
     def onMouseDown(self, e):
+        self.SetFocus()
+        for sel in self.selectors:
+            if sel.contains(e.X, e.Y):
+                self.activeSelector = sel
+                self.Refresh()
+                return
+
         self.resize = True
-        self.selX = e.X
-        self.selY = e.Y
+        self.currentSelection.X = e.X
+        self.currentSelection.Y = e.Y
+        self.newSelector = Selector(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height)
+        self.activeSelector = self.newSelector
 
     def onMouseMove(self, e):
         if self.resize:
-            self.selW = e.X - self.selX
-            self.selH = e.Y - self.selY
+            self.currentSelection.Width = e.X - self.currentSelection.X
+            self.currentSelection.Height = e.Y - self.currentSelection.Y
+            if self.newSelector:
+                self.newSelector.rect = wx.Rect(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height)
             self.Refresh()
 
     def onPaint(self, e):
         dc = wx.PaintDC(self)
         dc.Clear()
 
-        self.drawSelectorBack(dc, self.selX, self.selY, self.selW, self.selH)
-        for rect in self.selectors:
+        if self.activeSelector:
+            rect = self.activeSelector.rect
+            self.drawSelectorBack(dc, rect.X, rect.Y, rect.Width, rect.Height)
+
+        for selector in self.selectors:
+            rect = selector.rect
             self.drawSelectorBack(dc, rect.X, rect.Y, rect.Width, rect.Height)
 
         dc.DrawBitmap(self.bitmap, 0, 0);
 
-        dc.BeginDrawing()
-        dc.SetPen(wx.Pen('red'))
-        dc.SetBrush(wx.TRANSPARENT_BRUSH)
-        # set x, y, w, h for rectangle
-        dc.DrawRectangle(self.selX, self.selY, self.selW, self.selH)
-        dc.EndDrawing()
+        if self.activeSelector:
+            rect = self.activeSelector.rect
+            dc.BeginDrawing()
+            dc.SetPen(wx.Pen('red'))
+            dc.SetBrush(wx.TRANSPARENT_BRUSH)
+            # set x, y, w, h for rectangle
+            dc.DrawRectangle(rect.X, rect.Y, rect.Width, rect.Height)
+            dc.EndDrawing()
 
     def onEraseBack(self, e): pass # Do nothing, to avoid flashing on MSWin
 
@@ -66,10 +118,25 @@ class DrawPanel(wx.Panel):
         dc.DrawRectangle(x, y, w, h)
         dc.EndDrawing()
 
-    def export(self):
+    def sliceAndSave(self):
         img = self.bitmap.ConvertToImage()
-        img = img.GetSubImage(wx.Rect(self.selX, self.selY, self.selW, self.selH))
+        img = img.GetSubImage(self.activeSelector.rect)
         img.SaveFile('slice.png', wx.BITMAP_TYPE_PNG)
+
+    def export(self):
+        out = {'frames': {}}
+        for i, sel in enumerate(self.selectors):
+            rect = sel.rect
+            out['frames'][str(i)] = {
+                'frame': {
+                    'x': rect.X,
+                    'y': rect.Y,
+                    'w': rect.Width,
+                    'h': rect.Height,
+                }
+            }
+        return out
+
 
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
@@ -103,11 +170,19 @@ class MainWindow(wx.Frame):
 
         #pan = wx.Panel(self)
         #button = wx.Button(pan)
-        leftPanel = wx.Panel(self)
         self.drawPanel = DrawPanel(self)
 
-        button = wx.Button(leftPanel, label='export')
-        button.Bind(wx.EVT_BUTTON, self.onExportButton)
+        leftPanel = wx.Panel(self)
+        leftPanelSizer = wx.BoxSizer(wx.VERTICAL)
+
+        sliceButton = wx.Button(leftPanel, label='slice')
+        sliceButton.Bind(wx.EVT_BUTTON, self.onSliceButton)
+        exportButton = wx.Button(leftPanel, label='export')
+        exportButton.Bind(wx.EVT_BUTTON, self.onExportButton)
+
+        leftPanelSizer.Add(sliceButton, 0, wx.EXPAND)
+        leftPanelSizer.Add(exportButton, 0, wx.EXPAND)
+        leftPanel.SetSizer(leftPanelSizer)
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(leftPanel, 0, wx.EXPAND)
@@ -116,8 +191,15 @@ class MainWindow(wx.Frame):
 
         self.Show(True)
 
+        self.drawPanel.SetFocus()
+
+    def onSliceButton(self, e):
+        self.drawPanel.sliceAndSave()
+
     def onExportButton(self, e):
-        self.drawPanel.export()
+        file = open('out.json', 'w')
+        file.write(json.dumps(self.drawPanel.export()))
+        file.close()
 
     def onAbout(self, e):
         dlg = wx.MessageDialog(self, 'This is where the about stuff goes', 'About geo', wx.OK)
