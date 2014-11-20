@@ -8,8 +8,9 @@ class Selector():
         self.rect = wx.Rect(x, y, w, h)
 
     # Returns True if point is inside rect.
-    def contains(self, x, y):
-        return self.rect.ContainsXY(x, y)
+    def contains(self, x, y, zoom):
+        zoomedRect = wx.Rect(self.rect.X * zoom, self.rect.Y * zoom, self.rect.Width * zoom, self.rect.Height * zoom)
+        return zoomedRect.ContainsXY(x, y)
 
 class DrawPanel(wx.Panel):
     def __init__(self, parent):
@@ -33,6 +34,8 @@ class DrawPanel(wx.Panel):
         self.selectors = []
         self.activeSelector = None
 
+        self.zoom = 1.0
+
     def onKeyDown(self, e):
         keyCode = e.GetKeyCode()
         if keyCode == wx.WXK_DELETE:
@@ -40,12 +43,26 @@ class DrawPanel(wx.Panel):
                 self.selectors.remove(self.activeSelector)
                 self.activeSelector = None
                 self.Refresh()
+        if keyCode == wx.WXK_ADD or keyCode == wx.WXK_NUMPAD_ADD:
+            self.zoom += 0.1
+            self.Refresh()
+        elif keyCode == wx.WXK_SUBTRACT or keyCode == wx.WXK_NUMPAD_SUBTRACT:
+            self.zoom -= 0.1
+            self.Refresh()
         e.Skip()
 
     def onMouseUp(self, e):
         self.resize = False
         if self.newSelector:
             rect = self.newSelector.rect
+            self.newSelector.rect.X /= self.zoom
+            self.newSelector.rect.Y /= self.zoom
+            self.newSelector.rect.Width /= self.zoom
+            self.newSelector.rect.Height /= self.zoom
+            self.currentSelection.X /= self.zoom
+            self.currentSelection.Y /= self.zoom
+            self.currentSelection.Width /= self.zoom
+            self.currentSelection.Height /= self.zoom
 
             if (abs(rect.Width) < 1 and abs(rect.Height) < 1): return;
 
@@ -96,7 +113,7 @@ class DrawPanel(wx.Panel):
     def onMouseDown(self, e):
         self.SetFocus()
         for sel in self.selectors:
-            if sel.contains(e.X, e.Y):
+            if sel.contains(e.X, e.Y, self.zoom):
                 self.activeSelector = sel
                 self.Refresh()
                 return
@@ -118,34 +135,51 @@ class DrawPanel(wx.Panel):
     def onPaint(self, e):
         dc = wx.PaintDC(self)
         dc.Clear()
+        dc.SetUserScale(self.zoom, self.zoom)
 
-        if self.activeSelector:
+        if self.activeSelector and self.currentSelection.IsEmpty():
             rect = self.activeSelector.rect
             self.drawSelectorBack(dc, rect.X, rect.Y, rect.Width, rect.Height)
+        elif not self.currentSelection.IsEmpty():
+            rect = self.activeSelector.rect
+            self.drawSelectorBack(dc, rect.X/self.zoom, rect.Y/self.zoom, rect.Width/self.zoom, rect.Height/self.zoom)
 
         for selector in self.selectors:
             rect = selector.rect
+            #self.drawSelectorBack(dc, rect.X/self.zoom, rect.Y/self.zoom, rect.Width/self.zoom, rect.Height/self.zoom)
             self.drawSelectorBack(dc, rect.X, rect.Y, rect.Width, rect.Height)
 
         dc.DrawBitmap(self.bitmap, 0, 0);
 
-        if self.activeSelector:
+        if self.activeSelector and self.currentSelection.IsEmpty():
             rect = self.activeSelector.rect
-            dc.BeginDrawing()
-            dc.SetPen(wx.Pen('red'))
-            dc.SetBrush(wx.TRANSPARENT_BRUSH)
-            # set x, y, w, h for rectangle
-            dc.DrawRectangle(rect.X, rect.Y, rect.Width, rect.Height)
-            dc.EndDrawing()
+            self.drawSelectorActive(dc, rect.X, rect.Y, rect.Width, rect.Height)
+        elif not self.currentSelection.IsEmpty():
+            rect = self.activeSelector.rect
+            self.drawSelectorActive(dc, rect.X/self.zoom, rect.Y/self.zoom, rect.Width/self.zoom, rect.Height/self.zoom)
+
+    def scaleRect(self, rect, scale):
+        rect.X *= scale
+        rect.Y *= scale
+        rect.Width *= scale
+        rect.Height *= scale
 
     def onEraseBack(self, e): pass # Do nothing, to avoid flashing on MSWin
 
     def drawSelectorBack(self, dc, x, y, w, h):
         dc.BeginDrawing()
         dc.SetPen(wx.TRANSPARENT_PEN)
-        dc.SetBrush(wx.Brush(wx.Color(70, 70, 70, 0)))
+        dc.SetBrush(wx.Brush(wx.Color(70, 255, 70, 0)))
         # set x, y, w, h for rectangle
         dc.DrawRectangle(x, y, w, h)
+        dc.EndDrawing()
+
+    def drawSelectorActive(self, dc, x, y, w, h):
+        dc.BeginDrawing()
+        dc.SetPen(wx.Pen('red'))
+        dc.SetBrush(wx.TRANSPARENT_BRUSH)
+        # set x, y, w, h for rectangle
+        dc.DrawRectangle(x-1, y-1, w+2, h+2)
         dc.EndDrawing()
 
     def sliceAndSave(self):
