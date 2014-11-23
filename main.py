@@ -2,8 +2,6 @@ import wx
 import wx.lib.scrolledpanel
 import wx.lib.newevent
 import json
-from wx import glcanvas
-from OpenGL.GL import *
 
 class Selector():
     def __init__(self, x, y, w, h):
@@ -296,10 +294,6 @@ class MainWindow(wx.Frame):
         helpMenu = wx.Menu()
         menuBar = wx.MenuBar()
 
-        self.glInitialized = False
-        attribList = (glcanvas.WX_GL_RGBA, glcanvas.WX_GL_DOUBLEBUFFER, glcanvas.WX_GL_DEPTH_SIZE, 24) # 24 bit
-        #self.canvas = glcanvas.GLCanvas(self, attribList=attribList)
-
         # File Menu
         menuOpen = fileMenu.Append(wx.ID_OPEN, '&Open', 'Open a file') # The ampersand is the acceleration key.
         menuSave = fileMenu.Append(wx.ID_SAVE, '&Save', 'Save current file')
@@ -314,12 +308,7 @@ class MainWindow(wx.Frame):
 
         self.Bind(wx.EVT_MENU, self.onAbout, menuAbout)
         self.Bind(wx.EVT_MENU, self.onExit, menuExit)
-        #self.canvas.Bind(wx.EVT_ERASE_BACKGROUND, self.onBackgroundErase)
-        #self.canvas.Bind(wx.EVT_SIZE, self.onResize)
-        #self.canvas.Bind(wx.EVT_PAINT, self.onPaint)
 
-        #pan = wx.Panel(self)
-        #button = wx.Button(pan)
         self.drawPanelSizer = wx.BoxSizer(wx.VERTICAL)
         self.drawPanelScroller = wx.lib.scrolledpanel.ScrolledPanel(self)
         self.drawPanel = DrawPanel(self.drawPanelScroller)
@@ -371,67 +360,6 @@ class MainWindow(wx.Frame):
 
     def onExit(self, e):
         self.Close(True)
-
-    def onBackgroundErase(self, e):
-        pass # Do nothing, to avoid flashing on MSWin
-
-    def onResize(self, e):
-        if self.canvas.GetContext():
-            # Make sure the frame is shown before calling SetCurrent.
-            self.Show()
-            self.canvas.SetCurrent()
-
-            size = self.canvas.GetClientSize()
-            self.updateGLView(size.width, size.height)
-            self.canvas.Refresh(False)
-        e.Skip()
-
-    def onPaint(self, e):
-        self.canvas.SetCurrent()
-
-        # Initialize OpenGL
-        if not self.glInitialized:
-            self.initGL()
-            self.glInitialized = True
-
-        self.renderGL()
-        self.canvas.SwapBuffers()
-        e.Skip()
-
-    def updateGLView(self, width, height):
-        glViewport(0, 0, width, height)
-
-        glMatrixMode(GL_PROJECTION)
-        glLoadIdentity()
-        glOrtho(0, width, height, 0, -1, 1)
-
-        glMatrixMode(GL_MODELVIEW)
-        glLoadIdentity()
-
-    def initGL(self):
-        glClearColor(1, 1, 1, 1)
-        size = self.canvas.GetClientSize()
-        self.updateGLView(size.width, size.height)
-
-    def drawLine(self, x1, y1, x2, y2):
-        glBegin(GL_LINES)
-        glVertex(x1, y1)
-        glVertex(x2, y2)
-        glEnd()
-
-    def renderGL(self):
-        glClear(GL_COLOR_BUFFER_BIT)
-
-        canvasSize = self.canvas.GetClientSize()
-
-        # Draw grid
-        glColor(0.5, 0.5, 0.5)
-        for x in range(1, canvasSize.width/32 + 1):
-            self.drawLine(x*32, 0, x*32, canvasSize.height)
-
-        for y in range(1, canvasSize.height/32 + 1):
-            self.drawLine(0, y*32, canvasSize.width, y*32)
-
 
 app = wx.App(False)
 
