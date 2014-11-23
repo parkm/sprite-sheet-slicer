@@ -1,5 +1,6 @@
 import wx
 import wx.lib.scrolledpanel
+import wx.lib.newevent
 import json
 from wx import glcanvas
 from OpenGL.GL import *
@@ -14,6 +15,7 @@ class Selector():
         return zoomedRect.ContainsXY(x, y)
 
 class DrawPanel(wx.Panel):
+    OnSelectionEvent, EVT_ON_SELECTION = wx.lib.newevent.NewEvent()
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
 
@@ -136,6 +138,8 @@ class DrawPanel(wx.Panel):
             self.currentSelection = wx.Rect()
             self.Refresh()
 
+            wx.PostEvent(self, DrawPanel.OnSelectionEvent())
+
     def onMouseDown(self, e):
         self.SetFocus()
         for sel in self.selectors:
@@ -232,6 +236,57 @@ class DrawPanel(wx.Panel):
             }
         return out
 
+class AnimPanel(wx.Panel):
+    def __init__(self, parent):
+        wx.Panel.__init__(self, parent)
+
+        self.bitmap = wx.Bitmap('cindy.png')
+
+        img = self.bitmap.ConvertToImage()
+        self.slices = [img.GetSubImage(wx.Rect(11, 14, 43, 98)).ConvertToBitmap(), img.GetSubImage(wx.Rect(70, 15, 54, 97)).ConvertToBitmap()]
+
+        self.timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.onTimerUpdate, self.timer)
+        self.frame = 0
+
+        self.drawPanel = wx.Panel(self)
+        self.drawPanel.Bind(wx.EVT_PAINT, self.onPaint)
+        self.drawPanel.Bind(wx.EVT_ERASE_BACKGROUND, self.onEraseBack)
+        self.drawPanel.SetSize((128, 128))
+
+        self.playButton = wx.Button(self, label='play')
+        self.stopButton = wx.Button(self, label='stop')
+
+        self.playButton.Bind(wx.EVT_BUTTON, self.onPlayButton)
+        self.stopButton.Bind(wx.EVT_BUTTON, self.onStopButton)
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(self.drawPanel, 2, wx.EXPAND)
+        sizer.Add(self.playButton, 0, wx.EXPAND)
+        sizer.Add(self.stopButton, 0, wx.EXPAND)
+        self.SetSizer(sizer)
+
+    def onPlayButton(self, e):
+        self.timer.Start(1000/10)
+
+    def onStopButton(self, e):
+        self.frame = 0
+        self.timer.Stop()
+        self.drawPanel.Refresh()
+
+    def onTimerUpdate(self, e):
+        self.frame += 1
+        if self.frame > len(self.slices)-1:
+            self.frame = 0
+        self.drawPanel.Refresh()
+
+    def onEraseBack(self, e): pass # Do nothing, to avoid flashing on MSWin
+
+    def onPaint(self, e):
+        dc = wx.PaintDC(self.drawPanel)
+        dc.Clear()
+
+        dc.DrawBitmap(self.slices[self.frame], 0, 0);
 
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
@@ -268,6 +323,7 @@ class MainWindow(wx.Frame):
         self.drawPanelSizer = wx.BoxSizer(wx.VERTICAL)
         self.drawPanelScroller = wx.lib.scrolledpanel.ScrolledPanel(self)
         self.drawPanel = DrawPanel(self.drawPanelScroller)
+        self.drawPanel.Bind(DrawPanel.EVT_ON_SELECTION, self.test)
 
         self.drawPanelSizer.Add(self.drawPanel, 0, wx.FIXED_MINSIZE)
         self.drawPanelScroller.SetSizer(self.drawPanelSizer)
@@ -285,14 +341,20 @@ class MainWindow(wx.Frame):
         leftPanelSizer.Add(exportButton, 0, wx.EXPAND)
         leftPanel.SetSizer(leftPanelSizer)
 
+        animPanel = AnimPanel(self)
+
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(leftPanel, 0, wx.EXPAND)
         sizer.Add(self.drawPanelScroller, 2, wx.EXPAND)
+        sizer.Add(animPanel, 0, wx.EXPAND)
         self.SetSizer(sizer)
 
         self.Show(True)
 
         self.drawPanel.SetFocus()
+
+    def test(self, e):
+        print('hi')
 
     def onSliceButton(self, e):
         self.drawPanel.sliceAndSave()
