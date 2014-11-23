@@ -3,6 +3,14 @@ import wx.lib.scrolledpanel
 import wx.lib.newevent
 import json
 
+class Document():
+    def __init__(self, fileName):
+        self.setCurrentWorkingGraphic(fileName)
+
+    def setCurrentWorkingGraphic(self, fileName):
+        self.cwBitmap = wx.Bitmap(fileName)
+        self.cwImage = self.cwBitmap.ConvertToImage()
+
 class Selector():
     def __init__(self, x, y, w, h):
         self.rect = wx.Rect(x, y, w, h)
@@ -14,8 +22,9 @@ class Selector():
 
 class DrawPanel(wx.Panel):
     OnSelectionEvent, EVT_ON_SELECTION = wx.lib.newevent.NewEvent()
-    def __init__(self, parent):
+    def __init__(self, parent, doc):
         wx.Panel.__init__(self, parent)
+        self.doc = doc
 
         self.Bind(wx.EVT_PAINT, self.onPaint)
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.onEraseBack)
@@ -26,7 +35,6 @@ class DrawPanel(wx.Panel):
         self.Bind(wx.EVT_KEY_DOWN, self.onKeyDown)
         self.Bind(wx.EVT_KEY_UP, self.onKeyUp)
 
-        self.bitmap = wx.Bitmap('cindy.png')
         self.SetBackgroundColour('gray')
 
         self.currentSelection = wx.Rect()
@@ -38,7 +46,7 @@ class DrawPanel(wx.Panel):
         self.activeSelector = None
 
         self.zoom = 1.0
-        self.SetSize((self.bitmap.Width, self.bitmap.Height))
+        self.SetSize((self.doc.cwBitmap.Width, self.doc.cwBitmap.Height))
 
         self.controlHeld = False # CTRL being held?
 
@@ -103,7 +111,7 @@ class DrawPanel(wx.Panel):
                 self.currentSelection.Y -= self.currentSelection.Height
 
 
-            img = self.bitmap.ConvertToImage().GetSubImage(wx.Rect(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height))
+            img = self.doc.cwImage.GetSubImage(wx.Rect(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height))
 
             # Returns the amount of pixels you must add/subtract to crop out the alpha.
             def getCropAmount(yFirst, reverse):
@@ -176,7 +184,7 @@ class DrawPanel(wx.Panel):
             #self.drawSelectorBack(dc, rect.X/self.zoom, rect.Y/self.zoom, rect.Width/self.zoom, rect.Height/self.zoom)
             self.drawSelectorBack(dc, rect.X, rect.Y, rect.Width, rect.Height)
 
-        dc.DrawBitmap(self.bitmap, 0, 0);
+        dc.DrawBitmap(self.doc.cwBitmap, 0, 0);
 
         if self.activeSelector and self.currentSelection.IsEmpty():
             rect = self.activeSelector.rect
@@ -187,7 +195,7 @@ class DrawPanel(wx.Panel):
 
     def setZoom(self, amount):
         self.zoom = amount
-        self.SetMinSize((self.bitmap.Width * self.zoom, self.bitmap.Height * self.zoom))
+        self.SetMinSize((self.doc.cwBitmap.Width * self.zoom, self.doc.cwBitmap.Height * self.zoom))
         self.GetParent().FitInside()
 
     def scaleRect(self, rect, scale):
@@ -215,7 +223,7 @@ class DrawPanel(wx.Panel):
         dc.EndDrawing()
 
     def sliceAndSave(self):
-        img = self.bitmap.ConvertToImage()
+        img = self.doc.cwImage
         img = img.GetSubImage(self.activeSelector.rect)
         img.SaveFile('slice.png', wx.BITMAP_TYPE_PNG)
 
@@ -234,12 +242,12 @@ class DrawPanel(wx.Panel):
         return out
 
 class AnimPanel(wx.Panel):
-    def __init__(self, parent):
+    def __init__(self, parent, doc):
         wx.Panel.__init__(self, parent)
 
-        self.bitmap = wx.Bitmap('cindy.png')
+        self.doc = doc
 
-        img = self.bitmap.ConvertToImage()
+        img = self.doc.cwImage
         self.slices = []
 
         self.timer = wx.Timer(self)
@@ -313,9 +321,11 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.onAbout, menuAbout)
         self.Bind(wx.EVT_MENU, self.onExit, menuExit)
 
+        self.doc = Document('cindy.png')
+
         self.drawPanelSizer = wx.BoxSizer(wx.VERTICAL)
         self.drawPanelScroller = wx.lib.scrolledpanel.ScrolledPanel(self)
-        self.drawPanel = DrawPanel(self.drawPanelScroller)
+        self.drawPanel = DrawPanel(self.drawPanelScroller, self.doc)
         self.drawPanel.Bind(DrawPanel.EVT_ON_SELECTION, self.onDrawPanelSelection)
 
         self.drawPanelSizer.Add(self.drawPanel, 0, wx.FIXED_MINSIZE)
@@ -334,7 +344,7 @@ class MainWindow(wx.Frame):
         leftPanelSizer.Add(exportButton, 0, wx.EXPAND)
         leftPanel.SetSizer(leftPanelSizer)
 
-        self.animPanel = AnimPanel(self)
+        self.animPanel = AnimPanel(self, self.doc)
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(leftPanel, 0, wx.EXPAND)
@@ -344,12 +354,10 @@ class MainWindow(wx.Frame):
 
         self.Show(True)
 
-        self.bitmap = wx.Bitmap('cindy.png')
-
         self.drawPanel.SetFocus()
 
     def onDrawPanelSelection(self, e):
-        self.animPanel.slices.append(self.bitmap.ConvertToImage().GetSubImage(e.selector.rect).ConvertToBitmap())
+        self.animPanel.slices.append(self.doc.cwImage.GetSubImage(e.selector.rect).ConvertToBitmap())
 
     def onSliceButton(self, e):
         self.drawPanel.sliceAndSave()
