@@ -22,7 +22,9 @@ class DrawPanel(wx.Panel):
         self.Bind(wx.EVT_MOTION, self.onMouseMove)
         self.Bind(wx.EVT_LEFT_DOWN, self.onMouseDown)
         self.Bind(wx.EVT_LEFT_UP, self.onMouseUp)
+        self.Bind(wx.EVT_MOUSEWHEEL, self.onScroll)
         self.Bind(wx.EVT_KEY_DOWN, self.onKeyDown)
+        self.Bind(wx.EVT_KEY_UP, self.onKeyUp)
 
         self.bitmap = wx.Bitmap('cindy.png')
         self.SetBackgroundColour('gray')
@@ -38,6 +40,20 @@ class DrawPanel(wx.Panel):
         self.zoom = 1.0
         self.SetSize((self.bitmap.Width, self.bitmap.Height))
 
+        self.controlHeld = False # CTRL being held?
+
+    def onScroll(self, e):
+        if not self.controlHeld:
+            e.Skip()
+            return
+
+        rot = e.GetWheelRotation()
+        if rot > 0:
+            self.setZoom(self.zoom + 0.1)
+        else:
+            self.setZoom(self.zoom - 0.1)
+        self.Refresh()
+
     def onKeyDown(self, e):
         keyCode = e.GetKeyCode()
         if keyCode == wx.WXK_DELETE:
@@ -51,6 +67,14 @@ class DrawPanel(wx.Panel):
         elif keyCode == wx.WXK_SUBTRACT or keyCode == wx.WXK_NUMPAD_SUBTRACT:
             self.setZoom(self.zoom - 0.1)
             self.Refresh()
+        elif keyCode == wx.WXK_CONTROL:
+            self.controlHeld = True
+        e.Skip()
+
+    def onKeyUp(self, e):
+        keyCode = e.GetKeyCode();
+        if keyCode == wx.WXK_CONTROL:
+            self.controlHeld = False
         e.Skip()
 
     def onMouseUp(self, e):
@@ -139,8 +163,6 @@ class DrawPanel(wx.Panel):
         dc.Clear()
         dc.SetUserScale(self.zoom, self.zoom)
 
-
-
         if self.activeSelector and self.currentSelection.IsEmpty():
             rect = self.activeSelector.rect
             self.drawSelectorBack(dc, rect.X, rect.Y, rect.Width, rect.Height)
@@ -164,7 +186,7 @@ class DrawPanel(wx.Panel):
 
     def setZoom(self, amount):
         self.zoom = amount
-        self.SetMinSize((self.bitmap.Width*self.zoom, self.bitmap.Height*self.zoom))
+        self.SetMinSize((self.bitmap.Width * self.zoom, self.bitmap.Height * self.zoom))
         self.GetParent().FitInside()
 
     def scaleRect(self, rect, scale):
