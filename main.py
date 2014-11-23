@@ -169,7 +169,7 @@ class DrawPanel(wx.Panel):
     def drawSelectorBack(self, dc, x, y, w, h):
         dc.BeginDrawing()
         dc.SetPen(wx.TRANSPARENT_PEN)
-        dc.SetBrush(wx.Brush(wx.Color(70, 255, 70, 0)))
+        dc.SetBrush(wx.Brush(wx.Color(90, 200, 90, 0)))
         # set x, y, w, h for rectangle
         dc.DrawRectangle(x, y, w, h)
         dc.EndDrawing()
