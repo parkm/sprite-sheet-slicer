@@ -1,4 +1,5 @@
 import wx
+import wx.lib.scrolledpanel
 import json
 from wx import glcanvas
 from OpenGL.GL import *
@@ -35,6 +36,7 @@ class DrawPanel(wx.Panel):
         self.activeSelector = None
 
         self.zoom = 1.0
+        self.SetSize((self.bitmap.Width, self.bitmap.Height))
 
     def onKeyDown(self, e):
         keyCode = e.GetKeyCode()
@@ -44,10 +46,10 @@ class DrawPanel(wx.Panel):
                 self.activeSelector = None
                 self.Refresh()
         if keyCode == wx.WXK_ADD or keyCode == wx.WXK_NUMPAD_ADD:
-            self.zoom += 0.1
+            self.setZoom(self.zoom + 0.1)
             self.Refresh()
         elif keyCode == wx.WXK_SUBTRACT or keyCode == wx.WXK_NUMPAD_SUBTRACT:
-            self.zoom -= 0.1
+            self.setZoom(self.zoom - 0.1)
             self.Refresh()
         e.Skip()
 
@@ -137,6 +139,8 @@ class DrawPanel(wx.Panel):
         dc.Clear()
         dc.SetUserScale(self.zoom, self.zoom)
 
+
+
         if self.activeSelector and self.currentSelection.IsEmpty():
             rect = self.activeSelector.rect
             self.drawSelectorBack(dc, rect.X, rect.Y, rect.Width, rect.Height)
@@ -157,6 +161,11 @@ class DrawPanel(wx.Panel):
         elif not self.currentSelection.IsEmpty():
             rect = self.activeSelector.rect
             self.drawSelectorActive(dc, rect.X/self.zoom, rect.Y/self.zoom, rect.Width/self.zoom, rect.Height/self.zoom)
+
+    def setZoom(self, amount):
+        self.zoom = amount
+        self.SetMinSize((self.bitmap.Width*self.zoom, self.bitmap.Height*self.zoom))
+        self.GetParent().FitInside()
 
     def scaleRect(self, rect, scale):
         rect.X *= scale
@@ -234,7 +243,13 @@ class MainWindow(wx.Frame):
 
         #pan = wx.Panel(self)
         #button = wx.Button(pan)
-        self.drawPanel = DrawPanel(self)
+        self.drawPanelSizer = wx.BoxSizer(wx.VERTICAL)
+        self.drawPanelScroller = wx.lib.scrolledpanel.ScrolledPanel(self)
+        self.drawPanel = DrawPanel(self.drawPanelScroller)
+
+        self.drawPanelSizer.Add(self.drawPanel, 0, wx.FIXED_MINSIZE)
+        self.drawPanelScroller.SetSizer(self.drawPanelSizer)
+        self.drawPanelScroller.SetupScrolling()
 
         leftPanel = wx.Panel(self)
         leftPanelSizer = wx.BoxSizer(wx.VERTICAL)
@@ -250,7 +265,7 @@ class MainWindow(wx.Frame):
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(leftPanel, 0, wx.EXPAND)
-        sizer.Add(self.drawPanel, 2, wx.EXPAND)
+        sizer.Add(self.drawPanelScroller, 2, wx.EXPAND)
         self.SetSizer(sizer)
 
         self.Show(True)
