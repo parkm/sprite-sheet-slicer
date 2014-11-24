@@ -7,21 +7,40 @@ class Document():
     def __init__(self, fileName):
         self.setCurrentWorkingGraphic(fileName)
 
+        self.activeGroup = SpriteGroup()
+        self.spriteGroups = [self.activeGroup]
+
     def setCurrentWorkingGraphic(self, fileName):
         self.cwBitmap = wx.Bitmap(fileName)
         self.cwImage = self.cwBitmap.ConvertToImage()
 
 class Selector():
-    def __init__(self, x, y, w, h):
-        self.rect = wx.Rect(x, y, w, h)
+    def __init__(self, rect, slice):
+        self.rect = rect
+        self.slice = slice
 
     # Returns True if point is inside rect.
     def contains(self, x, y, zoom):
         zoomedRect = wx.Rect(self.rect.X * zoom, self.rect.Y * zoom, self.rect.Width * zoom, self.rect.Height * zoom)
         return zoomedRect.ContainsXY(x, y)
 
+class SpriteGroup():
+    def __init__(self):
+        self.slices = []
+
+    def addSlice(self, slice):
+        self.slices.append(slice)
+
+    def removeSlice(self, slice):
+        self.slices.remove(slice)
+
+class Slice():
+    def __init__(self, doc, sliceRect):
+        self.doc = doc
+        self.rect = sliceRect
+        self.bitmap = self.doc.cwImage.GetSubImage(self.rect).ConvertToBitmap()
+
 class DrawPanel(wx.Panel):
-    OnSelectionEvent, EVT_ON_SELECTION = wx.lib.newevent.NewEvent()
     def __init__(self, parent, doc):
         wx.Panel.__init__(self, parent)
         self.doc = doc
@@ -35,9 +54,10 @@ class DrawPanel(wx.Panel):
         self.Bind(wx.EVT_KEY_DOWN, self.onKeyDown)
         self.Bind(wx.EVT_KEY_UP, self.onKeyUp)
 
-        self.SetBackgroundColour('gray')
+        self.SetBackgroundColour(wx.Color(200, 200, 200))
 
-        self.currentSelection = wx.Rect()
+        self.newSelection = wx.Rect()
+
         self.SetDoubleBuffered(True)
 
         self.resize = False
@@ -66,6 +86,7 @@ class DrawPanel(wx.Panel):
         keyCode = e.GetKeyCode()
         if keyCode == wx.WXK_DELETE:
             if self.activeSelector:
+                self.doc.activeGroup.removeSlice(self.activeSelector.slice)
                 self.selectors.remove(self.activeSelector)
                 self.activeSelector = None
                 self.Refresh()
@@ -87,31 +108,26 @@ class DrawPanel(wx.Panel):
 
     def onMouseUp(self, e):
         self.resize = False
-        if self.newSelector:
-            rect = self.newSelector.rect
-            self.newSelector.rect.X /= self.zoom
-            self.newSelector.rect.Y /= self.zoom
-            self.newSelector.rect.Width /= self.zoom
-            self.newSelector.rect.Height /= self.zoom
-            self.currentSelection.X /= self.zoom
-            self.currentSelection.Y /= self.zoom
-            self.currentSelection.Width /= self.zoom
-            self.currentSelection.Height /= self.zoom
+        if not self.newSelection.IsEmpty():
+            rect = self.newSelection
+            self.newSelection.X /= self.zoom
+            self.newSelection.Y /= self.zoom
+            self.newSelection.Width /= self.zoom
+            self.newSelection.Height /= self.zoom
 
             if (abs(rect.Width) < 1 and abs(rect.Height) < 1): return;
 
             # If width is negative then swap x and width.
             if rect.Width < 0:
-                self.currentSelection.Width = abs(self.currentSelection.Width)
-                self.currentSelection.X -= self.currentSelection.Width
+                self.newSelection.Width = abs(self.newSelection.Width)
+                self.newSelection.X -= self.newSelection.Width
 
             # If height is negative then swap y and height.
             if rect.Height < 0:
-                self.currentSelection.Height = abs(self.currentSelection.Height)
-                self.currentSelection.Y -= self.currentSelection.Height
+                self.newSelection.Height = abs(self.newSelection.Height)
+                self.newSelection.Y -= self.newSelection.Height
 
-
-            img = self.doc.cwImage.GetSubImage(wx.Rect(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height))
+            img = self.doc.cwImage.GetSubImage(wx.Rect(self.newSelection.X, self.newSelection.Y, self.newSelection.Width, self.newSelection.Height))
 
             # Returns the amount of pixels you must add/subtract to crop out the alpha.
             def getCropAmount(yFirst, reverse):
@@ -137,34 +153,32 @@ class DrawPanel(wx.Panel):
             right = getCropAmount(False, True)
             bottom = getCropAmount(True, True)
 
-            #self.newSelector.rect = wx.Rect(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height)
-            self.newSelector.rect = wx.Rect(self.currentSelection.X + left, self.currentSelection.Y + top, self.currentSelection.Width - left - right, self.currentSelection.Height - top - bottom)
-            self.selectors.append(self.newSelector)
-            wx.PostEvent(self, DrawPanel.OnSelectionEvent(selector=self.newSelector))
-            self.newSelector = None
-            self.currentSelection = wx.Rect()
+            self.newSelection = wx.Rect(self.newSelection.X + left, self.newSelection.Y + top, self.newSelection.Width - left - right, self.newSelection.Height - top - bottom)
+
+            slice = Slice(self.doc, self.newSelection)
+            self.activeSelector = Selector(self.newSelection, slice)
+            self.selectors.append(self.activeSelector)
+            self.doc.activeGroup.addSlice(slice)
+
+            self.newSelection = wx.Rect()
             self.Refresh()
 
     def onMouseDown(self, e):
         self.SetFocus()
-        for sel in self.selectors:
+        for i, sel in enumerate(self.selectors):
             if sel.contains(e.X, e.Y, self.zoom):
                 self.activeSelector = sel
                 self.Refresh()
                 return
 
         self.resize = True
-        self.currentSelection.X = e.X
-        self.currentSelection.Y = e.Y
-        self.newSelector = Selector(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height)
-        self.activeSelector = self.newSelector
+        self.newSelection.X = e.X
+        self.newSelection.Y = e.Y
 
     def onMouseMove(self, e):
         if self.resize:
-            self.currentSelection.Width = e.X - self.currentSelection.X
-            self.currentSelection.Height = e.Y - self.currentSelection.Y
-            if self.newSelector:
-                self.newSelector.rect = wx.Rect(self.currentSelection.X, self.currentSelection.Y, self.currentSelection.Width, self.currentSelection.Height)
+            self.newSelection.Width = e.X - self.newSelection.X
+            self.newSelection.Height = e.Y - self.newSelection.Y
             self.Refresh()
 
     def onPaint(self, e):
@@ -172,25 +186,24 @@ class DrawPanel(wx.Panel):
         dc.Clear()
         dc.SetUserScale(self.zoom, self.zoom)
 
-        if self.activeSelector and self.currentSelection.IsEmpty():
+        if self.activeSelector and self.newSelection.IsEmpty():
             rect = self.activeSelector.rect
             self.drawSelectorBack(dc, rect.X, rect.Y, rect.Width, rect.Height)
-        elif not self.currentSelection.IsEmpty():
-            rect = self.activeSelector.rect
+        elif not self.newSelection.IsEmpty():
+            rect = self.newSelection
             self.drawSelectorBack(dc, rect.X/self.zoom, rect.Y/self.zoom, rect.Width/self.zoom, rect.Height/self.zoom)
 
-        for selector in self.selectors:
-            rect = selector.rect
-            #self.drawSelectorBack(dc, rect.X/self.zoom, rect.Y/self.zoom, rect.Width/self.zoom, rect.Height/self.zoom)
+        for sel in self.selectors:
+            rect = sel.rect
             self.drawSelectorBack(dc, rect.X, rect.Y, rect.Width, rect.Height)
 
         dc.DrawBitmap(self.doc.cwBitmap, 0, 0);
 
-        if self.activeSelector and self.currentSelection.IsEmpty():
+        if self.activeSelector and self.newSelection.IsEmpty():
             rect = self.activeSelector.rect
             self.drawSelectorActive(dc, rect.X, rect.Y, rect.Width, rect.Height)
-        elif not self.currentSelection.IsEmpty():
-            rect = self.activeSelector.rect
+        elif not self.newSelection.IsEmpty():
+            rect = self.newSelection
             self.drawSelectorActive(dc, rect.X/self.zoom, rect.Y/self.zoom, rect.Width/self.zoom, rect.Height/self.zoom)
 
     def setZoom(self, amount):
@@ -248,7 +261,6 @@ class AnimPanel(wx.Panel):
         self.doc = doc
 
         img = self.doc.cwImage
-        self.slices = []
 
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.onTimerUpdate, self.timer)
@@ -284,7 +296,7 @@ class AnimPanel(wx.Panel):
 
     def onTimerUpdate(self, e):
         self.frame += 1
-        if self.frame > len(self.slices)-1:
+        if self.frame > len(self.doc.activeGroup.slices)-1:
             self.frame = 0
         self.drawPanel.Refresh()
 
@@ -294,9 +306,9 @@ class AnimPanel(wx.Panel):
         dc = wx.PaintDC(self.drawPanel)
         dc.Clear()
 
-        if len(self.slices) > 0:
-            a = self.slices[self.frame]
-            dc.DrawBitmap(self.slices[self.frame], (self.animWidth/2) - (a.Width/2), 0);
+        if len(self.doc.activeGroup.slices) > 0:
+            slice = self.doc.activeGroup.slices[self.frame].bitmap
+            dc.DrawBitmap(slice, (self.animWidth/2) - (slice.Width/2), (self.animHeight/2) - (slice.Height/2));
 
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
@@ -326,7 +338,6 @@ class MainWindow(wx.Frame):
         self.drawPanelSizer = wx.BoxSizer(wx.VERTICAL)
         self.drawPanelScroller = wx.lib.scrolledpanel.ScrolledPanel(self)
         self.drawPanel = DrawPanel(self.drawPanelScroller, self.doc)
-        self.drawPanel.Bind(DrawPanel.EVT_ON_SELECTION, self.onDrawPanelSelection)
 
         self.drawPanelSizer.Add(self.drawPanel, 0, wx.FIXED_MINSIZE)
         self.drawPanelScroller.SetSizer(self.drawPanelSizer)
@@ -344,6 +355,8 @@ class MainWindow(wx.Frame):
         leftPanelSizer.Add(exportButton, 0, wx.EXPAND)
         leftPanel.SetSizer(leftPanelSizer)
 
+        self.drawPanelScroller.SetBackgroundColour(wx.Color(40, 40, 40))
+
         self.animPanel = AnimPanel(self, self.doc)
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -355,9 +368,6 @@ class MainWindow(wx.Frame):
         self.Show(True)
 
         self.drawPanel.SetFocus()
-
-    def onDrawPanelSelection(self, e):
-        self.animPanel.slices.append(self.doc.cwImage.GetSubImage(e.selector.rect).ConvertToBitmap())
 
     def onSliceButton(self, e):
         self.drawPanel.sliceAndSave()
