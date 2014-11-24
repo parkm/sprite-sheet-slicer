@@ -265,6 +265,7 @@ class AnimPanel(wx.Panel):
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.onTimerUpdate, self.timer)
         self.frame = 0
+        self.animSpeed = 500
 
         self.drawPanel = wx.Panel(self)
         self.drawPanel.Bind(wx.EVT_PAINT, self.onPaint)
@@ -277,8 +278,21 @@ class AnimPanel(wx.Panel):
         self.playButton.Bind(wx.EVT_BUTTON, self.onPlayButton)
         self.stopButton.Bind(wx.EVT_BUTTON, self.onStopButton)
 
+        animSpeedPanel = wx.Panel(self)
+        self.animSpeedLabel = wx.StaticText(animSpeedPanel, label='ms')
+        self.animSpeedInput = wx.TextCtrl(animSpeedPanel, size=(32, -1), value=str(self.animSpeed))
+        animSpeedPanelSizer = wx.BoxSizer(wx.HORIZONTAL)
+        animSpeedPanelSizer.AddStretchSpacer()
+        animSpeedPanelSizer.Add(self.animSpeedInput, 0)
+        animSpeedPanelSizer.Add(self.animSpeedLabel, 0)
+        animSpeedPanelSizer.AddStretchSpacer()
+        animSpeedPanel.SetSizer(animSpeedPanelSizer)
+
+        self.animSpeedInput.Bind(wx.EVT_TEXT, self.onAnimSpeedChange)
+
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.drawPanel, 2, wx.EXPAND)
+        sizer.Add(animSpeedPanel, 0, wx.EXPAND)
         sizer.Add(self.playButton, 0, wx.EXPAND)
         sizer.Add(self.stopButton, 0, wx.EXPAND)
         self.SetSizer(sizer)
@@ -286,8 +300,16 @@ class AnimPanel(wx.Panel):
         self.animWidth = 128
         self.animHeight = 128
 
+    def onAnimSpeedChange(self, e):
+        try:
+            self.animSpeed = int(self.animSpeedInput.Value)
+            self.timer.Stop()
+            self.frame = 0
+            self.timer.Start(self.animSpeed)
+        except ValueError: return
+
     def onPlayButton(self, e):
-        self.timer.Start(1000/2)
+        self.timer.Start(self.animSpeed)
 
     def onStopButton(self, e):
         self.frame = 0
