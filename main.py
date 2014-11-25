@@ -70,6 +70,15 @@ class DrawPanel(wx.Panel):
 
         self.controlHeld = False # CTRL being held?
 
+        self.mouseX = 0
+        self.mouseY = 0
+
+        self.gridSelection = True
+        self.gridWidth = 54
+        self.gridHeight = 98
+        self.horCells = 4
+        self.verCells = 2
+
     def onScroll(self, e):
         if not self.controlHeld:
             e.Skip()
@@ -106,65 +115,76 @@ class DrawPanel(wx.Panel):
             self.controlHeld = False
         e.Skip()
 
+    # Generates a slice from a rectangle, and add it to a slice group. Also adds a selector and crops.
+    def genSlice(self, rect):
+        if (abs(rect.Width) < 1 and abs(rect.Height) < 1): return;
+
+        # If width is negative then swap x and width.
+        if rect.Width < 0:
+            rect.Width = abs(rect.Width)
+            rect.X -= rect.Width
+
+        # If height is negative then swap y and height.
+        if rect.Height < 0:
+            rect.Height = abs(rect.Height)
+            rect.Y -= rect.Height
+
+        img = self.doc.cwImage.GetSubImage(rect)
+
+        # Returns the amount of pixels you must add/subtract to crop out the alpha.
+        def getCropAmount(yFirst, reverse):
+            out = 0
+            firstRange = range(img.Height if yFirst else img.Width)
+            if reverse: firstRange = reversed(firstRange)
+            for i in firstRange:
+                transparent = None
+                for j in range(img.Width if yFirst else img.Height):
+                    if yFirst:
+                        y = i
+                        x = j
+                    else:
+                        x = i
+                        y = j
+                    transparent = (img.GetAlpha(x, y) <= 0)
+                    if not transparent: break
+                if not transparent: break
+                out += 1
+            return out
+        left = getCropAmount(False, False)
+        top = getCropAmount(True, False)
+        right = getCropAmount(False, True)
+        bottom = getCropAmount(True, True)
+
+        rect = wx.Rect(rect.X + left, rect.Y + top, rect.Width - left - right, rect.Height - top - bottom)
+
+        slice = Slice(self.doc, rect)
+        self.activeSelector = Selector(rect, slice)
+        self.selectors.append(self.activeSelector)
+        self.doc.activeGroup.addSlice(slice)
+
     def onMouseUp(self, e):
         self.resize = False
         if not self.newSelection.IsEmpty():
-            rect = self.newSelection
             self.newSelection.X /= self.zoom
             self.newSelection.Y /= self.zoom
             self.newSelection.Width /= self.zoom
             self.newSelection.Height /= self.zoom
 
-            if (abs(rect.Width) < 1 and abs(rect.Height) < 1): return;
-
-            # If width is negative then swap x and width.
-            if rect.Width < 0:
-                self.newSelection.Width = abs(self.newSelection.Width)
-                self.newSelection.X -= self.newSelection.Width
-
-            # If height is negative then swap y and height.
-            if rect.Height < 0:
-                self.newSelection.Height = abs(self.newSelection.Height)
-                self.newSelection.Y -= self.newSelection.Height
-
-            img = self.doc.cwImage.GetSubImage(wx.Rect(self.newSelection.X, self.newSelection.Y, self.newSelection.Width, self.newSelection.Height))
-
-            # Returns the amount of pixels you must add/subtract to crop out the alpha.
-            def getCropAmount(yFirst, reverse):
-                out = 0
-                firstRange = range(img.Height if yFirst else img.Width)
-                if reverse: firstRange = reversed(firstRange)
-                for i in firstRange:
-                    transparent = None
-                    for j in range(img.Width if yFirst else img.Height):
-                        if yFirst:
-                            y = i
-                            x = j
-                        else:
-                            x = i
-                            y = j
-                        transparent = (img.GetAlpha(x, y) <= 0)
-                        if not transparent: break
-                    if not transparent: break
-                    out += 1
-                return out
-            left = getCropAmount(False, False)
-            top = getCropAmount(True, False)
-            right = getCropAmount(False, True)
-            bottom = getCropAmount(True, True)
-
-            self.newSelection = wx.Rect(self.newSelection.X + left, self.newSelection.Y + top, self.newSelection.Width - left - right, self.newSelection.Height - top - bottom)
-
-            slice = Slice(self.doc, self.newSelection)
-            self.activeSelector = Selector(self.newSelection, slice)
-            self.selectors.append(self.activeSelector)
-            self.doc.activeGroup.addSlice(slice)
+            self.genSlice(self.newSelection)
 
             self.newSelection = wx.Rect()
             self.Refresh()
 
     def onMouseDown(self, e):
         self.SetFocus()
+
+        if self.gridSelection:
+            for x in range(0, self.horCells):
+                for y in range(0, self.verCells):
+                    self.genSlice(wx.Rect(self.mouseX + (x * self.gridWidth), self.mouseY + (y * self.gridHeight), self.gridWidth, self.gridHeight))
+                    self.gridSelection = False
+                    self.Refresh()
+
         for i, sel in enumerate(self.selectors):
             if sel.contains(e.X, e.Y, self.zoom):
                 self.activeSelector = sel
@@ -176,6 +196,11 @@ class DrawPanel(wx.Panel):
         self.newSelection.Y = e.Y
 
     def onMouseMove(self, e):
+        if self.gridSelection:
+            self.mouseX = e.X / self.zoom
+            self.mouseY = e.Y / self.zoom
+            self.Refresh()
+
         if self.resize:
             self.newSelection.Width = e.X - self.newSelection.X
             self.newSelection.Height = e.Y - self.newSelection.Y
@@ -192,6 +217,15 @@ class DrawPanel(wx.Panel):
         elif not self.newSelection.IsEmpty():
             rect = self.newSelection
             self.drawSelectorBack(dc, rect.X/self.zoom, rect.Y/self.zoom, rect.Width/self.zoom, rect.Height/self.zoom)
+
+        if self.gridSelection:
+            for x in range(0, self.horCells):
+                for y in range(0, self.verCells):
+                    dc.BeginDrawing()
+                    dc.SetPen(wx.Pen(wx.Color(20,20,80)))
+                    dc.SetBrush(wx.Brush(wx.Color(70,70,150)))
+                    dc.DrawRectangle(self.mouseX + (x * self.gridWidth), self.mouseY + (y * self.gridHeight), self.gridWidth, self.gridHeight)
+                    dc.EndDrawing()
 
         for sel in self.selectors:
             rect = sel.rect
