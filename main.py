@@ -74,8 +74,8 @@ class DrawPanel(wx.Panel):
         self.mouseY = 0
 
         self.gridSelection = True
-        self.gridWidth = 54
-        self.gridHeight = 98
+        self.gridWidth = 64
+        self.gridHeight = 64
         self.horCells = 4
         self.verCells = 2
 
@@ -179,8 +179,8 @@ class DrawPanel(wx.Panel):
         self.SetFocus()
 
         if self.gridSelection:
-            for x in range(0, self.horCells):
-                for y in range(0, self.verCells):
+            for y in range(0, self.verCells):
+                for x in range(0, self.horCells):
                     self.genSlice(wx.Rect(self.mouseX + (x * self.gridWidth), self.mouseY + (y * self.gridHeight), self.gridWidth, self.gridHeight))
                     self.gridSelection = False
                     self.Refresh()
@@ -415,6 +415,21 @@ class MainWindow(wx.Frame):
 
         self.animPanel = AnimPanel(self, self.doc)
 
+        toolbar = self.CreateToolBar()
+        self.gridWidth = wx.TextCtrl(toolbar, value=str(self.drawPanel.gridWidth), size=(32, -1))
+        self.gridHeight = wx.TextCtrl(toolbar, value=str(self.drawPanel.gridHeight), size=(32, -1))
+        self.gridButton = wx.Button(toolbar, label='grid')
+
+        self.gridWidth.Bind(wx.EVT_TEXT, self.onGridWidthChange)
+        self.gridHeight.Bind(wx.EVT_TEXT, self.onGridHeightChange)
+        self.gridButton.Bind(wx.EVT_BUTTON, self.onGridButton)
+
+        toolbar.AddControl(self.gridButton)
+        toolbar.AddControl(self.gridWidth)
+        toolbar.AddControl(wx.StaticText(toolbar, label='x'))
+        toolbar.AddControl(self.gridHeight)
+        toolbar.Realize()
+
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(leftPanel, 0, wx.EXPAND)
         sizer.Add(self.drawPanelScroller, 2, wx.EXPAND)
@@ -424,6 +439,22 @@ class MainWindow(wx.Frame):
         self.Show(True)
 
         self.drawPanel.SetFocus()
+
+    def onGridButton(self, e):
+        self.drawPanel.gridSelection = not self.drawPanel.gridSelection
+        self.drawPanel.Refresh()
+
+    def onGridWidthChange(self, e):
+        try:
+            self.drawPanel.gridWidth = int(self.gridWidth.Value)
+            self.drawPanel.Refresh()
+        except ValueError: return
+
+    def onGridHeightChange(self, e):
+        try:
+            self.drawPanel.gridHeight = int(self.gridHeight.Value)
+            self.drawPanel.Refresh()
+        except ValueError: return
 
     def onSliceButton(self, e):
         self.drawPanel.sliceAndSave()
