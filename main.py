@@ -69,9 +69,13 @@ class SpriteSheetPanel(wx.Panel):
         self.SetSize((self.doc.cwBitmap.Width, self.doc.cwBitmap.Height))
 
         self.controlHeld = False # CTRL being held?
+        self.leftMouseHeld = False
 
         self.mouseX = 0
         self.mouseY = 0
+        # Mouse position when control key was last pressed.
+        self.controlMouseX = 0
+        self.controlMouseY = 0
 
         self.gridSelection = False
         self.gridWidth = 64
@@ -106,7 +110,16 @@ class SpriteSheetPanel(wx.Panel):
             self.setZoom(self.zoom - 0.1)
             self.Refresh()
         elif keyCode == wx.WXK_CONTROL:
+            self.controlMouseX = self.mouseX
+            self.controlMouseY = self.mouseY
             self.controlHeld = True
+        elif keyCode == wx.WXK_SPACE:
+            if self.gridSelection:
+                for y in range(0, self.verCells):
+                    for x in range(0, self.horCells):
+                        self.createSelection(wx.Rect(self.mouseX + (x * self.gridWidth), self.mouseY + (y * self.gridHeight), self.gridWidth, self.gridHeight))
+                        self.gridSelection = False
+                        self.Refresh()
         e.Skip()
 
     def onKeyUp(self, e):
@@ -183,15 +196,13 @@ class SpriteSheetPanel(wx.Panel):
             self.newSelection = wx.Rect()
             self.Refresh()
 
+        self.leftMouseHeld = False
+
     def onMouseDown(self, e):
         self.SetFocus()
 
-        if self.gridSelection:
-            for y in range(0, self.verCells):
-                for x in range(0, self.horCells):
-                    self.createSelection(wx.Rect(self.mouseX + (x * self.gridWidth), self.mouseY + (y * self.gridHeight), self.gridWidth, self.gridHeight))
-                    self.gridSelection = False
-                    self.Refresh()
+        self.leftMouseHeld = True
+        if self.gridSelection: return
 
         for i, sel in enumerate(self.selectors):
             if sel.contains(e.X, e.Y, self.zoom):
@@ -205,8 +216,12 @@ class SpriteSheetPanel(wx.Panel):
 
     def onMouseMove(self, e):
         if self.gridSelection:
-            self.mouseX = e.X / self.zoom
-            self.mouseY = e.Y / self.zoom
+            if self.controlHeld:
+                self.gridWidth = e.X / self.zoom - self.controlMouseX
+                self.gridHeight = e.Y / self.zoom - self.controlMouseY
+            elif self.leftMouseHeld:
+                self.mouseX = e.X / self.zoom
+                self.mouseY = e.Y / self.zoom
             self.Refresh()
 
         if self.resize:
