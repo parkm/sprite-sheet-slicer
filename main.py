@@ -73,7 +73,7 @@ class DrawPanel(wx.Panel):
         self.mouseX = 0
         self.mouseY = 0
 
-        self.gridSelection = True
+        self.gridSelection = False
         self.gridWidth = 64
         self.gridHeight = 64
         self.horCells = 4
@@ -115,9 +115,10 @@ class DrawPanel(wx.Panel):
             self.controlHeld = False
         e.Skip()
 
-    # Generates a slice from a rectangle, and add it to a slice group. Also adds a selector and crops.
-    def genSlice(self, rect):
-        if (abs(rect.Width) < 1 and abs(rect.Height) < 1): return;
+    # Creates a selection: creates slice and adds to slice group, adds selector and crops.
+    def createSelection(self, rect):
+        if (abs(rect.Width) < 1 and abs(rect.Height) < 1):
+            return False
 
         # If width is negative then swap x and width.
         if rect.Width < 0:
@@ -129,6 +130,9 @@ class DrawPanel(wx.Panel):
             rect.Height = abs(rect.Height)
             rect.Y -= rect.Height
 
+        if rect.X + rect.Width > self.doc.cwImage.Width or rect.Y + rect.Height > self.doc.cwImage.Height:
+            return False
+
         img = self.doc.cwImage.GetSubImage(rect)
 
         # Returns the amount of pixels you must add/subtract to crop out the alpha.
@@ -137,7 +141,7 @@ class DrawPanel(wx.Panel):
             firstRange = range(img.Height if yFirst else img.Width)
             if reverse: firstRange = reversed(firstRange)
             for i in firstRange:
-                transparent = None
+                transparent = False
                 for j in range(img.Width if yFirst else img.Height):
                     if yFirst:
                         y = i
@@ -149,6 +153,8 @@ class DrawPanel(wx.Panel):
                     if not transparent: break
                 if not transparent: break
                 out += 1
+            if (yFirst and out >= img.Height) or (not yFirst and out >= img.Width):
+                out = 0
             return out
         left = getCropAmount(False, False)
         top = getCropAmount(True, False)
@@ -162,6 +168,8 @@ class DrawPanel(wx.Panel):
         self.selectors.append(self.activeSelector)
         self.doc.activeGroup.addSlice(slice)
 
+        return True
+
     def onMouseUp(self, e):
         self.resize = False
         if not self.newSelection.IsEmpty():
@@ -170,7 +178,7 @@ class DrawPanel(wx.Panel):
             self.newSelection.Width /= self.zoom
             self.newSelection.Height /= self.zoom
 
-            self.genSlice(self.newSelection)
+            self.createSelection(self.newSelection)
 
             self.newSelection = wx.Rect()
             self.Refresh()
@@ -181,7 +189,7 @@ class DrawPanel(wx.Panel):
         if self.gridSelection:
             for y in range(0, self.verCells):
                 for x in range(0, self.horCells):
-                    self.genSlice(wx.Rect(self.mouseX + (x * self.gridWidth), self.mouseY + (y * self.gridHeight), self.gridWidth, self.gridHeight))
+                    self.createSelection(wx.Rect(self.mouseX + (x * self.gridWidth), self.mouseY + (y * self.gridHeight), self.gridWidth, self.gridHeight))
                     self.gridSelection = False
                     self.Refresh()
 
@@ -418,16 +426,27 @@ class MainWindow(wx.Frame):
         toolbar = self.CreateToolBar()
         self.gridWidth = wx.TextCtrl(toolbar, value=str(self.drawPanel.gridWidth), size=(32, -1))
         self.gridHeight = wx.TextCtrl(toolbar, value=str(self.drawPanel.gridHeight), size=(32, -1))
+        self.gridColumns = wx.TextCtrl(toolbar, value=str(self.drawPanel.horCells), size=(24, -1))
+        self.gridRows = wx.TextCtrl(toolbar, value=str(self.drawPanel.verCells), size=(24, -1))
         self.gridButton = wx.Button(toolbar, label='grid')
 
         self.gridWidth.Bind(wx.EVT_TEXT, self.onGridWidthChange)
         self.gridHeight.Bind(wx.EVT_TEXT, self.onGridHeightChange)
+        self.gridColumns.Bind(wx.EVT_TEXT, self.onGridColumnChange)
+        self.gridRows.Bind(wx.EVT_TEXT, self.onGridRowChange)
         self.gridButton.Bind(wx.EVT_BUTTON, self.onGridButton)
 
         toolbar.AddControl(self.gridButton)
+        toolbar.AddSeparator()
+        toolbar.AddControl(wx.StaticText(toolbar, label='size'))
         toolbar.AddControl(self.gridWidth)
         toolbar.AddControl(wx.StaticText(toolbar, label='x'))
         toolbar.AddControl(self.gridHeight)
+        toolbar.AddSeparator()
+        toolbar.AddControl(wx.StaticText(toolbar, label='cells'))
+        toolbar.AddControl(self.gridColumns)
+        toolbar.AddControl(wx.StaticText(toolbar, label='x'))
+        toolbar.AddControl(self.gridRows)
         toolbar.Realize()
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -443,6 +462,18 @@ class MainWindow(wx.Frame):
     def onGridButton(self, e):
         self.drawPanel.gridSelection = not self.drawPanel.gridSelection
         self.drawPanel.Refresh()
+
+    def onGridColumnChange(self, e):
+        try:
+            self.drawPanel.horCells = int(self.gridColumns.Value)
+            self.drawPanel.Refresh()
+        except ValueError: return
+
+    def onGridRowChange(self, e):
+        try:
+            self.drawPanel.verCells = int(self.gridRows.Value)
+            self.drawPanel.Refresh()
+        except ValueError: return
 
     def onGridWidthChange(self, e):
         try:
