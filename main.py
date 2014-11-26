@@ -40,7 +40,7 @@ class Slice():
         self.rect = sliceRect
         self.bitmap = self.doc.cwImage.GetSubImage(self.rect).ConvertToBitmap()
 
-class DrawPanel(wx.Panel):
+class SpriteSheetPanel(wx.Panel):
     def __init__(self, parent, doc):
         wx.Panel.__init__(self, parent)
         self.doc = doc
@@ -399,13 +399,13 @@ class MainWindow(wx.Frame):
 
         self.doc = Document('cindy.png')
 
-        self.drawPanelSizer = wx.BoxSizer(wx.VERTICAL)
-        self.drawPanelScroller = wx.lib.scrolledpanel.ScrolledPanel(self)
-        self.drawPanel = DrawPanel(self.drawPanelScroller, self.doc)
+        self.sheetPanelSizer = wx.BoxSizer(wx.VERTICAL)
+        self.sheetPanelScroller = wx.lib.scrolledpanel.ScrolledPanel(self)
+        self.sheetPanel = SpriteSheetPanel(self.sheetPanelScroller, self.doc)
 
-        self.drawPanelSizer.Add(self.drawPanel, 0, wx.FIXED_MINSIZE)
-        self.drawPanelScroller.SetSizer(self.drawPanelSizer)
-        self.drawPanelScroller.SetupScrolling()
+        self.sheetPanelSizer.Add(self.sheetPanel, 0, wx.FIXED_MINSIZE)
+        self.sheetPanelScroller.SetSizer(self.sheetPanelSizer)
+        self.sheetPanelScroller.SetupScrolling()
 
         leftPanel = wx.Panel(self)
         leftPanelSizer = wx.BoxSizer(wx.VERTICAL)
@@ -419,15 +419,15 @@ class MainWindow(wx.Frame):
         leftPanelSizer.Add(exportButton, 0, wx.EXPAND)
         leftPanel.SetSizer(leftPanelSizer)
 
-        self.drawPanelScroller.SetBackgroundColour(wx.Color(40, 40, 40))
+        self.sheetPanelScroller.SetBackgroundColour(wx.Color(40, 40, 40))
 
         self.animPanel = AnimPanel(self, self.doc)
 
         toolbar = self.CreateToolBar()
-        self.gridWidth = wx.TextCtrl(toolbar, value=str(self.drawPanel.gridWidth), size=(32, -1))
-        self.gridHeight = wx.TextCtrl(toolbar, value=str(self.drawPanel.gridHeight), size=(32, -1))
-        self.gridColumns = wx.TextCtrl(toolbar, value=str(self.drawPanel.horCells), size=(24, -1))
-        self.gridRows = wx.TextCtrl(toolbar, value=str(self.drawPanel.verCells), size=(24, -1))
+        self.gridWidth = wx.TextCtrl(toolbar, value=str(self.sheetPanel.gridWidth), size=(32, -1))
+        self.gridHeight = wx.TextCtrl(toolbar, value=str(self.sheetPanel.gridHeight), size=(32, -1))
+        self.gridColumns = wx.TextCtrl(toolbar, value=str(self.sheetPanel.horCells), size=(24, -1))
+        self.gridRows = wx.TextCtrl(toolbar, value=str(self.sheetPanel.verCells), size=(24, -1))
         self.gridButton = wx.Button(toolbar, label='grid')
 
         self.gridWidth.Bind(wx.EVT_TEXT, self.onGridWidthChange)
@@ -451,48 +451,48 @@ class MainWindow(wx.Frame):
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(leftPanel, 0, wx.EXPAND)
-        sizer.Add(self.drawPanelScroller, 2, wx.EXPAND)
+        sizer.Add(self.sheetPanelScroller, 2, wx.EXPAND)
         sizer.Add(self.animPanel, 0, wx.EXPAND)
         self.SetSizer(sizer)
 
         self.Show(True)
 
-        self.drawPanel.SetFocus()
+        self.sheetPanel.SetFocus()
 
     def onGridButton(self, e):
-        self.drawPanel.gridSelection = not self.drawPanel.gridSelection
-        self.drawPanel.Refresh()
+        self.sheetPanel.gridSelection = not self.sheetPanel.gridSelection
+        self.sheetPanel.Refresh()
 
     def onGridColumnChange(self, e):
         try:
-            self.drawPanel.horCells = int(self.gridColumns.Value)
-            self.drawPanel.Refresh()
+            self.sheetPanel.horCells = int(self.gridColumns.Value)
+            self.sheetPanel.Refresh()
         except ValueError: return
 
     def onGridRowChange(self, e):
         try:
-            self.drawPanel.verCells = int(self.gridRows.Value)
-            self.drawPanel.Refresh()
+            self.sheetPanel.verCells = int(self.gridRows.Value)
+            self.sheetPanel.Refresh()
         except ValueError: return
 
     def onGridWidthChange(self, e):
         try:
-            self.drawPanel.gridWidth = int(self.gridWidth.Value)
-            self.drawPanel.Refresh()
+            self.sheetPanel.gridWidth = int(self.gridWidth.Value)
+            self.sheetPanel.Refresh()
         except ValueError: return
 
     def onGridHeightChange(self, e):
         try:
-            self.drawPanel.gridHeight = int(self.gridHeight.Value)
-            self.drawPanel.Refresh()
+            self.sheetPanel.gridHeight = int(self.gridHeight.Value)
+            self.sheetPanel.Refresh()
         except ValueError: return
 
     def onSliceButton(self, e):
-        self.drawPanel.sliceAndSave()
+        self.sheetPanel.sliceAndSave()
 
     def onExportButton(self, e):
         file = open('out.json', 'w')
-        file.write(json.dumps(self.drawPanel.export()))
+        file.write(json.dumps(self.sheetPanel.export()))
         file.close()
 
     def onAbout(self, e):
