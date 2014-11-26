@@ -374,6 +374,11 @@ class AnimPanel(wx.Panel):
             slice = self.doc.activeGroup.slices[self.frame].bitmap
             dc.DrawBitmap(slice, (self.animWidth/2) - (slice.Width/2), (self.animHeight/2) - (slice.Height/2));
 
+class SliceGroupPanel(wx.Panel):
+    def __init__(self, parent, doc):
+        wx.Panel.__init__(self, parent)
+        self.doc = doc
+
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
         wx.Frame.__init__(self, parent, title=title, size=(640, 480))
@@ -421,7 +426,15 @@ class MainWindow(wx.Frame):
 
         self.sheetPanelScroller.SetBackgroundColour(wx.Color(40, 40, 40))
 
-        self.animPanel = AnimPanel(self, self.doc)
+        rightPanelSizer = wx.BoxSizer(wx.VERTICAL)
+        rightPanel = wx.Panel(self)
+        self.animPanel = AnimPanel(rightPanel, self.doc)
+
+        sliceGroupPanel = SliceGroupPanel(rightPanel, self.doc)
+
+        rightPanelSizer.Add(self.animPanel, 0, wx.EXPAND)
+        rightPanelSizer.Add(sliceGroupPanel , 0, wx.EXPAND)
+        rightPanel.SetSizer(rightPanelSizer)
 
         toolbar = self.CreateToolBar()
         self.gridWidth = wx.TextCtrl(toolbar, value=str(self.sheetPanel.gridWidth), size=(32, -1))
@@ -452,7 +465,7 @@ class MainWindow(wx.Frame):
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(leftPanel, 0, wx.EXPAND)
         sizer.Add(self.sheetPanelScroller, 2, wx.EXPAND)
-        sizer.Add(self.animPanel, 0, wx.EXPAND)
+        sizer.Add(rightPanel, 0, wx.EXPAND)
         self.SetSizer(sizer)
 
         self.Show(True)
