@@ -41,6 +41,8 @@ class Slice():
         self.bitmap = self.doc.cwImage.GetSubImage(self.rect).ConvertToBitmap()
 
 class SpriteSheetPanel(wx.Panel):
+    onSelectionCreatedEvent, EVT_ON_SELECTION_CREATED = wx.lib.newevent.NewEvent()
+    onSelectionDeletedEvent, EVT_ON_SELECTION_DELETED = wx.lib.newevent.NewEvent()
     def __init__(self, parent, doc):
         wx.Panel.__init__(self, parent)
         self.doc = doc
@@ -99,7 +101,7 @@ class SpriteSheetPanel(wx.Panel):
         keyCode = e.GetKeyCode()
         if keyCode == wx.WXK_DELETE:
             if self.activeSelector:
-                self.doc.activeGroup.removeSlice(self.activeSelector.slice)
+                wx.PostEvent(self, SpriteSheetPanel.onSelectionDeletedEvent(slice=self.activeSelector.slice))
                 self.selectors.remove(self.activeSelector)
                 self.activeSelector = None
                 self.Refresh()
@@ -179,7 +181,8 @@ class SpriteSheetPanel(wx.Panel):
         slice = Slice(self.doc, rect)
         self.activeSelector = Selector(rect, slice)
         self.selectors.append(self.activeSelector)
-        self.doc.activeGroup.addSlice(slice)
+
+        wx.PostEvent(self, SpriteSheetPanel.onSelectionCreatedEvent(slice=slice))
 
         return True
 
@@ -422,6 +425,8 @@ class MainWindow(wx.Frame):
         self.sheetPanelSizer = wx.BoxSizer(wx.VERTICAL)
         self.sheetPanelScroller = wx.lib.scrolledpanel.ScrolledPanel(self)
         self.sheetPanel = SpriteSheetPanel(self.sheetPanelScroller, self.doc)
+        self.sheetPanel.Bind(SpriteSheetPanel.EVT_ON_SELECTION_CREATED, self.onSelectionCreated)
+        self.sheetPanel.Bind(SpriteSheetPanel.EVT_ON_SELECTION_DELETED, self.onSelectionDeleted)
 
         self.sheetPanelSizer.Add(self.sheetPanel, 0, wx.FIXED_MINSIZE)
         self.sheetPanelScroller.SetSizer(self.sheetPanelSizer)
@@ -486,6 +491,12 @@ class MainWindow(wx.Frame):
         self.Show(True)
 
         self.sheetPanel.SetFocus()
+
+    def onSelectionCreated(self, e):
+        self.doc.activeGroup.addSlice(e.slice)
+
+    def onSelectionDeleted(self, e):
+        self.doc.activeGroup.removeSlice(e.slice)
 
     def onGridButton(self, e):
         self.sheetPanel.gridSelection = not self.sheetPanel.gridSelection
