@@ -397,6 +397,65 @@ class SliceGroupPanel(wx.Panel):
         wx.Panel.__init__(self, parent)
         self.doc = doc
 
+        self.list = wx.ListCtrl(self, style=wx.LC_REPORT|wx.BORDER_SUNKEN)
+        self.list.InsertColumn(0, 'slice')
+        self.list.InsertColumn(1, 'name')
+
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sizer.Add(self.list, 2, wx.EXPAND)
+        self.SetSizer(sizer)
+
+        self.slices = []
+
+        self.imageListScale = 0.5
+        self.imageListSize = wx.Size(0, 0)
+
+    # Creates and assigns a new imageList from the size specified. Adds sliced bitmaps.
+    def createImageList(self, size):
+        self.imageListSize = wx.Size(size.GetWidth() * self.imageListScale, size.GetHeight() * self.imageListScale)
+        self.imageList = wx.ImageList(self.imageListSize.GetWidth(), self.imageListSize.GetHeight(), len(self.slices))
+
+        # Add the images from the slices. Resize them to fit with the new imageList size.
+        for slice in self.slices:
+            image = slice.bitmap.ConvertToImage()
+            image = image.Scale(image.Width * self.imageListScale, image.Height * self.imageListScale, wx.IMAGE_QUALITY_HIGH)
+            image = image.Resize(self.imageListSize, (0, 0))
+            self.imageList.Add(image.ConvertToBitmap())
+
+        self.list.AssignImageList(self.imageList, wx.IMAGE_LIST_SMALL)
+
+    # Returns the largest width and height found from all sliced bitmaps.
+    def getLargestSize(self):
+        width = 0
+        height = 0
+        for slice in self.slices:
+            bitmap = slice.bitmap
+            if bitmap.Width > width: width = bitmap.Width
+            if bitmap.Height > height: height = bitmap.Height
+        return wx.Size(width, height)
+
+    def addSlice(self, slice):
+        self.slices.append(slice)
+
+        largestSize = self.getLargestSize()
+        self.createImageList(largestSize)
+
+        index = len(self.slices)-1
+        self.list.InsertStringItem(index, '', index)
+        self.list.SetStringItem(index, 1, str(index))
+
+    def removeSlice(self, slice):
+        self.list.DeleteAllItems()
+        self.slices.remove(slice)
+
+        # Find largest size again, in case we deleted the largest slice.
+        largestSize = self.getLargestSize()
+        self.createImageList(largestSize)
+
+        for i in range(len(self.slices)):
+            self.list.InsertStringItem(i, '', long(i))
+            self.list.SetStringItem(i, 1, str(i))
+
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
         wx.Frame.__init__(self, parent, title=title, size=(640, 480))
@@ -450,10 +509,10 @@ class MainWindow(wx.Frame):
         rightPanel = wx.Panel(self)
         self.animPanel = AnimPanel(rightPanel, self.doc)
 
-        sliceGroupPanel = SliceGroupPanel(rightPanel, self.doc)
+        self.sliceGroupPanel = SliceGroupPanel(rightPanel, self.doc)
 
         rightPanelSizer.Add(self.animPanel, 0, wx.EXPAND)
-        rightPanelSizer.Add(sliceGroupPanel , 0, wx.EXPAND)
+        rightPanelSizer.Add(self.sliceGroupPanel , 2, wx.EXPAND)
         rightPanel.SetSizer(rightPanelSizer)
 
         toolbar = self.CreateToolBar()
@@ -494,9 +553,11 @@ class MainWindow(wx.Frame):
 
     def onSelectionCreated(self, e):
         self.doc.activeGroup.addSlice(e.slice)
+        self.sliceGroupPanel.addSlice(e.slice)
 
     def onSelectionDeleted(self, e):
         self.doc.activeGroup.removeSlice(e.slice)
+        self.sliceGroupPanel.removeSlice(e.slice)
 
     def onGridButton(self, e):
         self.sheetPanel.gridSelection = not self.sheetPanel.gridSelection
