@@ -400,6 +400,8 @@ class SliceGroupPanel(wx.Panel):
         self.list = wx.ListCtrl(self, style=wx.LC_REPORT|wx.BORDER_SUNKEN)
         self.list.InsertColumn(0, 'slice')
         self.list.InsertColumn(1, 'name')
+        self.list.SetColumnWidth(0, wx.LIST_AUTOSIZE_USEHEADER)
+        self.list.SetColumnWidth(1, wx.LIST_AUTOSIZE)
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(self.list, 2, wx.EXPAND)
