@@ -403,8 +403,20 @@ class SliceGroupPanel(wx.Panel):
         self.list.SetColumnWidth(0, wx.LIST_AUTOSIZE_USEHEADER)
         self.list.SetColumnWidth(1, wx.LIST_AUTOSIZE)
 
-        sizer = wx.BoxSizer(wx.HORIZONTAL)
+        buttonPanel = wx.Panel(self)
+        buttonSizer = wx.BoxSizer(wx.HORIZONTAL)
+        upButton = wx.BitmapButton(buttonPanel, wx.ID_UP, wx.ArtProvider.GetBitmap(wx.ART_GO_UP))
+        upButton.Bind(wx.EVT_BUTTON, self.onUpButton)
+        downButton = wx.BitmapButton(buttonPanel, wx.ID_DOWN, wx.ArtProvider.GetBitmap(wx.ART_GO_DOWN))
+        downButton.Bind(wx.EVT_BUTTON, self.onDownButton)
+
+        buttonSizer.Add(upButton)
+        buttonSizer.Add(downButton)
+        buttonPanel.SetSizer(buttonSizer)
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.list, 2, wx.EXPAND)
+        sizer.Add(buttonPanel)
         self.SetSizer(sizer)
 
         self.slices = []
@@ -457,6 +469,14 @@ class SliceGroupPanel(wx.Panel):
         for i in range(len(self.slices)):
             self.list.InsertStringItem(i, '', long(i))
             self.list.SetStringItem(i, 1, str(i))
+
+    def onUpButton(self, e):
+        selectedIndex = self.list.GetFirstSelected()
+        selectedItem = self.list.GetItemData(selectedIndex)
+        print('up')
+
+    def onDownButton(self, e):
+        print('down')
 
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
