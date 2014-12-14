@@ -3,12 +3,23 @@ import wx.lib.scrolledpanel
 import wx.lib.newevent
 import json
 
-class Document():
+class Document(wx.EvtHandler):
+    onSliceAddEvent, EVT_ON_SLICE_ADD = wx.lib.newevent.NewEvent()
+    onSliceRemoveEvent, EVT_ON_SLICE_REMOVE = wx.lib.newevent.NewEvent()
     def __init__(self, fileName):
+        wx.EvtHandler.__init__(self)
         self.setCurrentWorkingGraphic(fileName)
 
         self.activeGroup = SpriteGroup()
         self.spriteGroups = [self.activeGroup]
+
+    def addSlice(self, slice):
+        self.activeGroup.addSlice(slice)
+        wx.PostEvent(self, Document.onSliceAddEvent(slice=slice))
+
+    def removeSlice(self, slice):
+        self.activeGroup.removeSlice(slice)
+        wx.PostEvent(self, Document.onSliceRemoveEvent(slice=slice))
 
     def setCurrentWorkingGraphic(self, fileName):
         self.cwBitmap = wx.Bitmap(fileName)
@@ -41,8 +52,6 @@ class Slice():
         self.bitmap = self.doc.cwImage.GetSubImage(self.rect).ConvertToBitmap()
 
 class SpriteSheetPanel(wx.Panel):
-    onSelectionCreatedEvent, EVT_ON_SELECTION_CREATED = wx.lib.newevent.NewEvent()
-    onSelectionDeletedEvent, EVT_ON_SELECTION_DELETED = wx.lib.newevent.NewEvent()
     def __init__(self, parent, doc):
         wx.Panel.__init__(self, parent)
         self.doc = doc
@@ -101,7 +110,7 @@ class SpriteSheetPanel(wx.Panel):
         keyCode = e.GetKeyCode()
         if keyCode == wx.WXK_DELETE:
             if self.activeSelector:
-                wx.PostEvent(self, SpriteSheetPanel.onSelectionDeletedEvent(slice=self.activeSelector.slice))
+                self.doc.removeSlice(self.activeSelector.slice)
                 self.selectors.remove(self.activeSelector)
                 self.activeSelector = None
                 self.Refresh()
@@ -182,7 +191,7 @@ class SpriteSheetPanel(wx.Panel):
         self.activeSelector = Selector(rect, slice)
         self.selectors.append(self.activeSelector)
 
-        wx.PostEvent(self, SpriteSheetPanel.onSelectionCreatedEvent(slice=slice))
+        self.doc.addSlice(slice)
 
         return True
 
@@ -403,6 +412,9 @@ class SliceGroupPanel(wx.Panel):
         self.list.SetColumnWidth(0, wx.LIST_AUTOSIZE_USEHEADER)
         self.list.SetColumnWidth(1, wx.LIST_AUTOSIZE)
 
+        self.doc.Bind(Document.EVT_ON_SLICE_ADD, self.onDocAddSlice)
+        self.doc.Bind(Document.EVT_ON_SLICE_REMOVE, self.onDocRemoveSlice)
+
         buttonPanel = wx.Panel(self)
         buttonSizer = wx.BoxSizer(wx.HORIZONTAL)
         upButton = wx.BitmapButton(buttonPanel, wx.ID_UP, wx.ArtProvider.GetBitmap(wx.ART_GO_UP))
@@ -423,6 +435,13 @@ class SliceGroupPanel(wx.Panel):
 
         self.imageListScale = 0.5
         self.imageListSize = wx.Size(0, 0)
+
+    def onDocAddSlice(self, e):
+        self.addSlice(e.slice)
+        e.Skip()
+    def onDocRemoveSlice(self, e):
+        self.removeSlice(e.slice)
+        e.Skip()
 
     # Creates and assigns a new imageList from the size specified. Adds sliced bitmaps.
     def createImageList(self, size):
@@ -506,8 +525,6 @@ class MainWindow(wx.Frame):
         self.sheetPanelSizer = wx.BoxSizer(wx.VERTICAL)
         self.sheetPanelScroller = wx.lib.scrolledpanel.ScrolledPanel(self)
         self.sheetPanel = SpriteSheetPanel(self.sheetPanelScroller, self.doc)
-        self.sheetPanel.Bind(SpriteSheetPanel.EVT_ON_SELECTION_CREATED, self.onSelectionCreated)
-        self.sheetPanel.Bind(SpriteSheetPanel.EVT_ON_SELECTION_DELETED, self.onSelectionDeleted)
 
         self.sheetPanelSizer.Add(self.sheetPanel, 0, wx.FIXED_MINSIZE)
         self.sheetPanelScroller.SetSizer(self.sheetPanelSizer)
@@ -573,14 +590,6 @@ class MainWindow(wx.Frame):
 
         self.sheetPanel.SetFocus()
 
-    def onSelectionCreated(self, e):
-        self.doc.activeGroup.addSlice(e.slice)
-        self.sliceGroupPanel.addSlice(e.slice)
-
-    def onSelectionDeleted(self, e):
-        self.doc.activeGroup.removeSlice(e.slice)
-        self.sliceGroupPanel.removeSlice(e.slice)
-
     def onGridButton(self, e):
         self.sheetPanel.gridSelection = not self.sheetPanel.gridSelection
         self.sheetPanel.Refresh()
@@ -618,7 +627,7 @@ class MainWindow(wx.Frame):
         file.close()
 
     def onAbout(self, e):
-        dlg = wx.MessageDialog(self, 'This is where the about stuff goes', 'About geo', wx.OK)
+        dlg = wx.MessageDialog(self, 'This is where the about stuff goes', 'About this', wx.OK)
         dlg.ShowModal()
         dlg.Destroy()
 
