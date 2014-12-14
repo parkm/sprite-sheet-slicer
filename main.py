@@ -6,6 +6,7 @@ import json
 class Document(wx.EvtHandler):
     onSliceAddEvent, EVT_ON_SLICE_ADD = wx.lib.newevent.NewEvent()
     onSliceRemoveEvent, EVT_ON_SLICE_REMOVE = wx.lib.newevent.NewEvent()
+    onSliceSwapEvent, EVT_ON_SLICE_SWAP = wx.lib.newevent.NewEvent()
     def __init__(self, fileName):
         wx.EvtHandler.__init__(self)
         self.setCurrentWorkingGraphic(fileName)
@@ -20,6 +21,11 @@ class Document(wx.EvtHandler):
     def removeSlice(self, slice):
         self.activeGroup.removeSlice(slice)
         wx.PostEvent(self, Document.onSliceRemoveEvent(slice=slice))
+
+    def swapSlice(self, sliceA, sliceB):
+        indices = self.activeGroup.swapSlice(sliceA, sliceB)
+        if indices == False: return
+        wx.PostEvent(self, Document.onSliceSwapEvent(indexA=indices[0], indexB=indices[1]))
 
     def setCurrentWorkingGraphic(self, fileName):
         self.cwBitmap = wx.Bitmap(fileName)
@@ -44,6 +50,15 @@ class SpriteGroup():
 
     def removeSlice(self, slice):
         self.slices.remove(slice)
+
+    def swapSlice(self, sliceA, sliceB):
+        aIndex = self.slices.index(sliceA)
+        bIndex = self.slices.index(sliceB)
+        if aIndex < 0 or bIndex < 0: return False
+
+        self.slices[aIndex] = sliceB
+        self.slices[bIndex] = sliceA
+        return (aIndex, bIndex)
 
 class Slice():
     def __init__(self, doc, sliceRect):
@@ -406,7 +421,7 @@ class SliceGroupPanel(wx.Panel):
         wx.Panel.__init__(self, parent)
         self.doc = doc
 
-        self.list = wx.ListCtrl(self, style=wx.LC_REPORT|wx.BORDER_SUNKEN)
+        self.list = wx.ListCtrl(self, style=wx.LC_REPORT|wx.BORDER_SUNKEN|wx.LC_SINGLE_SEL)
         self.list.InsertColumn(0, 'slice')
         self.list.InsertColumn(1, 'name')
         self.list.SetColumnWidth(0, wx.LIST_AUTOSIZE_USEHEADER)
@@ -414,6 +429,7 @@ class SliceGroupPanel(wx.Panel):
 
         self.doc.Bind(Document.EVT_ON_SLICE_ADD, self.onDocAddSlice)
         self.doc.Bind(Document.EVT_ON_SLICE_REMOVE, self.onDocRemoveSlice)
+        self.doc.Bind(Document.EVT_ON_SLICE_SWAP, self.onDocSwapSlice)
 
         buttonPanel = wx.Panel(self)
         buttonSizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -442,6 +458,21 @@ class SliceGroupPanel(wx.Panel):
     def onDocRemoveSlice(self, e):
         self.removeSlice(e.slice)
         e.Skip()
+    def onDocSwapSlice(self, e):
+        tmpBitmap = self.imageList.GetBitmap(e.indexA)
+        tmpSlice = self.slices[e.indexA]
+
+        # Swap slices array.
+        self.slices[e.indexA] = self.slices[e.indexB]
+        self.slices[e.indexB] = tmpSlice
+
+        # Swap image list bitmaps.
+        self.imageList.Replace(e.indexA, self.imageList.GetBitmap(e.indexB))
+        self.imageList.Replace(e.indexB, tmpBitmap)
+
+        # Update image list items.
+        self.list.SetStringItem(e.indexA, 0, '', e.indexA)
+        self.list.SetStringItem(e.indexB, 0, '', e.indexB)
 
     # Creates and assigns a new imageList from the size specified. Adds sliced bitmaps.
     def createImageList(self, size):
@@ -491,11 +522,15 @@ class SliceGroupPanel(wx.Panel):
 
     def onUpButton(self, e):
         selectedIndex = self.list.GetFirstSelected()
-        selectedItem = self.list.GetItemData(selectedIndex)
-        print('up')
+        if (selectedIndex <= 0): return
+        self.doc.swapSlice(self.slices[selectedIndex-1], self.slices[selectedIndex])
+        self.list.Select(selectedIndex-1)
 
     def onDownButton(self, e):
-        print('down')
+        selectedIndex = self.list.GetFirstSelected()
+        if (selectedIndex >= len(self.slices)-1): return
+        self.doc.swapSlice(self.slices[selectedIndex+1], self.slices[selectedIndex])
+        self.list.Select(selectedIndex+1)
 
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
