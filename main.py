@@ -2,6 +2,7 @@ import wx
 import wx.lib.scrolledpanel
 import wx.lib.newevent
 import json
+import os
 
 class Document(wx.EvtHandler):
     onSliceAddEvent, EVT_ON_SLICE_ADD = wx.lib.newevent.NewEvent()
@@ -319,11 +320,6 @@ class SpriteSheetPanel(wx.Panel):
         dc.DrawRectangle(x-1, y-1, w+2, h+2)
         dc.EndDrawing()
 
-    def sliceAndSave(self):
-        img = self.doc.cwImage
-        img = img.GetSubImage(self.activeSelector.rect)
-        img.SaveFile('slice.png', wx.BITMAP_TYPE_PNG)
-
     def export(self):
         out = {'frames': {}}
         for i, sel in enumerate(self.selectors):
@@ -541,8 +537,9 @@ class MainWindow(wx.Frame):
         menuBar = wx.MenuBar()
 
         # File Menu
-        menuOpen = fileMenu.Append(wx.ID_OPEN, '&Open', 'Open a file') # The ampersand is the acceleration key.
-        menuSave = fileMenu.Append(wx.ID_SAVE, '&Save', 'Save current file')
+        # The ampersand is the acceleration key.
+        menuExportJson = fileMenu.Append(wx.ID_FILE1, 'Export to &JSON', 'Export slices to JSON.')
+        menuExportPng = fileMenu.Append(wx.ID_FILE2, 'Export to &PNG', 'Export slices to PNG images.')
         fileMenu.AppendSeparator()
         menuExit = fileMenu.Append(wx.ID_EXIT, 'E&xit', 'Terminate program')
         # Help Menu
@@ -554,6 +551,8 @@ class MainWindow(wx.Frame):
 
         self.Bind(wx.EVT_MENU, self.onAbout, menuAbout)
         self.Bind(wx.EVT_MENU, self.onExit, menuExit)
+        self.Bind(wx.EVT_MENU, self.onExportJsonButton, menuExportJson)
+        self.Bind(wx.EVT_MENU, self.onExportSliceButton, menuExportPng)
 
         self.doc = Document('cindy.png')
 
@@ -564,18 +563,6 @@ class MainWindow(wx.Frame):
         self.sheetPanelSizer.Add(self.sheetPanel, 0, wx.FIXED_MINSIZE)
         self.sheetPanelScroller.SetSizer(self.sheetPanelSizer)
         self.sheetPanelScroller.SetupScrolling()
-
-        leftPanel = wx.Panel(self)
-        leftPanelSizer = wx.BoxSizer(wx.VERTICAL)
-
-        sliceButton = wx.Button(leftPanel, label='slice')
-        sliceButton.Bind(wx.EVT_BUTTON, self.onSliceButton)
-        exportButton = wx.Button(leftPanel, label='export')
-        exportButton.Bind(wx.EVT_BUTTON, self.onExportButton)
-
-        leftPanelSizer.Add(sliceButton, 0, wx.EXPAND)
-        leftPanelSizer.Add(exportButton, 0, wx.EXPAND)
-        leftPanel.SetSizer(leftPanelSizer)
 
         self.sheetPanelScroller.SetBackgroundColour(wx.Color(40, 40, 40))
 
@@ -616,7 +603,6 @@ class MainWindow(wx.Frame):
         toolbar.Realize()
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(leftPanel, 0, wx.EXPAND)
         sizer.Add(self.sheetPanelScroller, 2, wx.EXPAND)
         sizer.Add(rightPanel, 0, wx.EXPAND)
         self.SetSizer(sizer)
@@ -653,13 +639,45 @@ class MainWindow(wx.Frame):
             self.sheetPanel.Refresh()
         except ValueError: return
 
-    def onSliceButton(self, e):
-        self.sheetPanel.sliceAndSave()
+    def onExportSliceButton(self, e):
+        dlg = wx.FileDialog(self, 'Export Slices', './', '', '*.png', wx.SAVE)
+        if dlg.ShowModal() == wx.ID_OK:
+            filePaths = []
+            warnOverwrite = False
+            for i in range(len(self.doc.activeGroup.slices)):
+                filePath = os.path.join(dlg.GetDirectory(), str(i) + '_' + dlg.GetFilename())
+                filePaths.append(filePath)
+                if (os.path.exists(filePath)):
+                    warnOverwrite = True
 
-    def onExportButton(self, e):
-        file = open('out.json', 'w')
-        file.write(json.dumps(self.sheetPanel.export()))
-        file.close()
+            write = True
+            if (warnOverwrite):
+                warn = wx.MessageDialog(self, 'This will overwrite data for multiple files.', 'Warning')
+                write = (warn.ShowModal() == wx.ID_OK)
+                warn.Destroy()
+
+            if (write):
+                for i, slice in enumerate(self.doc.activeGroup.slices):
+                    filePath = os.path.join(dlg.GetDirectory(), filePaths[i])
+                    slice.bitmap.ConvertToImage().SaveFile(filePath, wx.BITMAP_TYPE_PNG)
+
+        dlg.Destroy()
+
+    def onExportJsonButton(self, e):
+        dlg = wx.FileDialog(self, 'Export JSON', './', '', '*.json', wx.SAVE)
+        if dlg.ShowModal() == wx.ID_OK:
+            filePath = os.path.join(dlg.GetDirectory(), dlg.GetFilename())
+            write = True
+            if (os.path.exists(filePath)):
+                warn = wx.MessageDialog(self, "This will overwrite the current file's data.", 'Warning')
+                write = (warn.ShowModal() == wx.ID_OK)
+                warn.Destroy()
+
+            if (write):
+                with open(filePath, 'w') as file:
+                    file.write(json.dumps(self.sheetPanel.export()))
+
+        dlg.Destroy()
 
     def onAbout(self, e):
         dlg = wx.MessageDialog(self, 'This is where the about stuff goes', 'About this', wx.OK)
