@@ -170,8 +170,10 @@ class SpriteSheetPanel(wx.Panel):
             rect.Height = abs(rect.Height)
             rect.Y -= rect.Height
 
-        if rect.X + rect.Width > self.doc.cwImage.Width or rect.Y + rect.Height > self.doc.cwImage.Height:
-            return False
+        if rect.X + rect.Width > self.doc.cwImage.Width:
+            rect.Width = self.doc.cwImage.Width - rect.X
+        if rect.Y + rect.Height > self.doc.cwImage.Height:
+            rect.Height = self.doc.cwImage.Height - rect.Y
 
         img = self.doc.cwImage.GetSubImage(rect)
 
