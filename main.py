@@ -32,6 +32,28 @@ class Document(wx.EvtHandler):
         self.cwBitmap = wx.Bitmap(fileName)
         self.cwImage = self.cwBitmap.ConvertToImage()
 
+    def importJson(self, jsonString):
+        sliceData = json.loads(jsonString)
+        frames = [None] * len(sliceData['frames'])
+        for key in sliceData['frames']:
+            frames[int(key)] = sliceData['frames'][key]['frame']
+        for frame in frames:
+            self.addSlice(Slice(self, wx.Rect(frame['x'], frame['y'], frame['w'], frame['h'])))
+
+    def exportJson(self):
+        out = {'frames': {}}
+        for i, slice in enumerate(self.activeGroup.slices):
+            rect = slice.rect
+            out['frames'][str(i)] = {
+                'frame': {
+                    'x': rect.X,
+                    'y': rect.Y,
+                    'w': rect.Width,
+                    'h': rect.Height,
+                }
+            }
+        return out
+
 class Selector():
     def __init__(self, rect, slice):
         self.rect = rect
@@ -80,6 +102,8 @@ class SpriteSheetPanel(wx.Panel):
         self.Bind(wx.EVT_MOUSEWHEEL, self.onScroll)
         self.Bind(wx.EVT_KEY_DOWN, self.onKeyDown)
         self.Bind(wx.EVT_KEY_UP, self.onKeyUp)
+
+        self.doc.Bind(Document.EVT_ON_SLICE_ADD, self.onDocAddSlice)
 
         self.SetBackgroundColour(wx.Color(200, 200, 200))
 
@@ -204,14 +228,16 @@ class SpriteSheetPanel(wx.Panel):
         bottom = getCropAmount(True, True)
 
         rect = wx.Rect(rect.X + left, rect.Y + top, rect.Width - left - right, rect.Height - top - bottom)
-
         slice = Slice(self.doc, rect)
-        self.activeSelector = Selector(rect, slice)
-        self.selectors.append(self.activeSelector)
-
         self.doc.addSlice(slice)
 
         return True
+
+    def onDocAddSlice(self, e):
+        self.activeSelector = Selector(e.slice.rect, e.slice)
+        self.selectors.append(self.activeSelector)
+        self.Refresh()
+        e.Skip()
 
     def onMouseUp(self, e):
         self.resize = False
@@ -321,20 +347,6 @@ class SpriteSheetPanel(wx.Panel):
         # set x, y, w, h for rectangle
         dc.DrawRectangle(x-1, y-1, w+2, h+2)
         dc.EndDrawing()
-
-    def export(self):
-        out = {'frames': {}}
-        for i, sel in enumerate(self.selectors):
-            rect = sel.rect
-            out['frames'][str(i)] = {
-                'frame': {
-                    'x': rect.X,
-                    'y': rect.Y,
-                    'w': rect.Width,
-                    'h': rect.Height,
-                }
-            }
-        return out
 
 class AnimPanel(wx.Panel):
     def __init__(self, parent, doc):
@@ -540,8 +552,9 @@ class MainWindow(wx.Frame):
 
         # File Menu
         # The ampersand is the acceleration key.
-        menuExportJson = fileMenu.Append(wx.ID_FILE1, 'Export to &JSON', 'Export slices to JSON.')
-        menuExportPng = fileMenu.Append(wx.ID_FILE2, 'Export to &PNG', 'Export slices to PNG images.')
+        menuImportJson = fileMenu.Append(wx.ID_FILE1, 'Import JSON...', 'Create slices from JSON.')
+        menuExportJson = fileMenu.Append(wx.ID_FILE2, 'Export to &JSON...', 'Export slices to JSON.')
+        menuExportPng = fileMenu.Append(wx.ID_FILE3, 'Export to &PNG...', 'Export slices to PNG images.')
         fileMenu.AppendSeparator()
         menuExit = fileMenu.Append(wx.ID_EXIT, 'E&xit', 'Terminate program')
         # Help Menu
@@ -553,6 +566,7 @@ class MainWindow(wx.Frame):
 
         self.Bind(wx.EVT_MENU, self.onAbout, menuAbout)
         self.Bind(wx.EVT_MENU, self.onExit, menuExit)
+        self.Bind(wx.EVT_MENU, self.onImportJsonButton, menuImportJson)
         self.Bind(wx.EVT_MENU, self.onExportJsonButton, menuExportJson)
         self.Bind(wx.EVT_MENU, self.onExportSliceButton, menuExportPng)
 
@@ -677,8 +691,16 @@ class MainWindow(wx.Frame):
 
             if (write):
                 with open(filePath, 'w') as file:
-                    file.write(json.dumps(self.sheetPanel.export()))
+                    file.write(json.dumps(self.doc.exportJson()))
 
+        dlg.Destroy()
+
+    def onImportJsonButton(self, e):
+        dlg = wx.FileDialog(self, 'Import JSON', './', '', '*.json', wx.OPEN)
+        if dlg.ShowModal() == wx.ID_OK:
+            filePath = os.path.join(dlg.GetDirectory(), dlg.GetFilename())
+            with open(filePath, 'r') as file:
+                self.doc.importJson(file.read())
         dlg.Destroy()
 
     def onAbout(self, e):
