@@ -104,6 +104,7 @@ class SpriteSheetPanel(wx.Panel):
         self.Bind(wx.EVT_KEY_UP, self.onKeyUp)
 
         self.doc.Bind(Document.EVT_ON_SLICE_ADD, self.onDocAddSlice)
+        self.doc.Bind(Document.EVT_ON_SLICE_REMOVE, self.onDocRemoveSlice)
 
         self.SetBackgroundColour(wx.Color(200, 200, 200))
 
@@ -151,9 +152,6 @@ class SpriteSheetPanel(wx.Panel):
         if keyCode == wx.WXK_DELETE:
             if self.activeSelector:
                 self.doc.removeSlice(self.activeSelector.slice)
-                self.selectors.remove(self.activeSelector)
-                self.activeSelector = None
-                self.Refresh()
         if keyCode == wx.WXK_ADD or keyCode == wx.WXK_NUMPAD_ADD:
             self.setZoom(self.zoom + 0.1)
             self.Refresh()
@@ -238,6 +236,14 @@ class SpriteSheetPanel(wx.Panel):
         self.selectors.append(self.activeSelector)
         self.Refresh()
         e.Skip()
+
+    def onDocRemoveSlice(self, e):
+        for sel in self.selectors:
+            if sel.slice == e.slice:
+                self.selectors.remove(sel)
+                self.activeSelector = None
+                break
+        self.Refresh()
 
     def onMouseUp(self, e):
         self.resize = False
@@ -447,9 +453,13 @@ class SliceGroupPanel(wx.Panel):
         upButton.Bind(wx.EVT_BUTTON, self.onUpButton)
         downButton = wx.BitmapButton(buttonPanel, wx.ID_DOWN, wx.ArtProvider.GetBitmap(wx.ART_GO_DOWN))
         downButton.Bind(wx.EVT_BUTTON, self.onDownButton)
+        deleteButton = wx.BitmapButton(buttonPanel, wx.ID_DELETE, wx.ArtProvider.GetBitmap(wx.ART_DELETE))
+        deleteButton.Bind(wx.EVT_BUTTON, self.onDeleteButton)
 
         buttonSizer.Add(upButton)
-        buttonSizer.Add(downButton)
+        buttonSizer.Add(downButton, 1)
+        buttonSizer.Add((0, 0), 2, wx.EXPAND) # Acts as a spacer.
+        buttonSizer.Add(deleteButton)
         buttonPanel.SetSizer(buttonSizer)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -483,6 +493,7 @@ class SliceGroupPanel(wx.Panel):
         # Update image list items.
         self.list.SetStringItem(e.indexA, 0, '', e.indexA)
         self.list.SetStringItem(e.indexB, 0, '', e.indexB)
+        e.Skip()
 
     # Creates and assigns a new imageList from the size specified. Adds sliced bitmaps.
     def createImageList(self, size):
@@ -542,25 +553,34 @@ class SliceGroupPanel(wx.Panel):
         self.doc.swapSlice(self.slices[selectedIndex+1], self.slices[selectedIndex])
         self.list.Select(selectedIndex+1)
 
+    def onDeleteButton(self, e):
+        selectedIndex = self.list.GetFirstSelected()
+        if selectedIndex < 0: return
+        self.doc.removeSlice(self.slices[selectedIndex])
+
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
         wx.Frame.__init__(self, parent, title=title, size=(640, 480))
 
         fileMenu = wx.Menu()
+        editMenu = wx.Menu()
         helpMenu = wx.Menu()
         menuBar = wx.MenuBar()
 
         # File Menu
         # The ampersand is the acceleration key.
-        menuImportJson = fileMenu.Append(wx.ID_FILE1, 'Import JSON...', 'Create slices from JSON.')
-        menuExportJson = fileMenu.Append(wx.ID_FILE2, 'Export to &JSON...', 'Export slices to JSON.')
-        menuExportPng = fileMenu.Append(wx.ID_FILE3, 'Export to &PNG...', 'Export slices to PNG images.')
+        menuImportJson = fileMenu.Append(wx.NewId(), 'Import JSON...', 'Create slices from JSON.')
+        menuExportJson = fileMenu.Append(wx.NewId(), 'Export to &JSON...', 'Export slices to JSON.')
+        menuExportPng = fileMenu.Append(wx.NewId(), 'Export to &PNG...', 'Export slices to PNG images.')
         fileMenu.AppendSeparator()
         menuExit = fileMenu.Append(wx.ID_EXIT, 'E&xit', 'Terminate program')
+        # Edit Menu
+        menuDeleteAll = editMenu.Append(wx.NewId(), 'Delete All Slices', 'Deletes all current slices.')
         # Help Menu
         menuAbout = helpMenu.Append(wx.ID_ABOUT, '&About', 'Info goes here')
 
         menuBar.Append(fileMenu, '&File')
+        menuBar.Append(editMenu, '&Edit')
         menuBar.Append(helpMenu, '&Help')
         self.SetMenuBar(menuBar)
 
@@ -569,6 +589,7 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.onImportJsonButton, menuImportJson)
         self.Bind(wx.EVT_MENU, self.onExportJsonButton, menuExportJson)
         self.Bind(wx.EVT_MENU, self.onExportSliceButton, menuExportPng)
+        self.Bind(wx.EVT_MENU, self.onDeleteAllButton, menuDeleteAll)
 
         self.doc = Document('cindy.png')
 
@@ -702,6 +723,13 @@ class MainWindow(wx.Frame):
             with open(filePath, 'r') as file:
                 self.doc.importJson(file.read())
         dlg.Destroy()
+
+    def onDeleteAllButton(self, e):
+        # TODO: This is slow. Make a special delete all event in Document.
+        # Clone so we don't remove items of the list we iterate through.
+        toRemove = list(self.doc.activeGroup.slices)
+        for slice in toRemove:
+            self.doc.removeSlice(slice)
 
     def onAbout(self, e):
         dlg = wx.MessageDialog(self, 'This is where the about stuff goes', 'About this', wx.OK)
