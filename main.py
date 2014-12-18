@@ -103,22 +103,11 @@ class SpriteSheetPanel(wx.Panel):
         self.Bind(wx.EVT_KEY_DOWN, self.onKeyDown)
         self.Bind(wx.EVT_KEY_UP, self.onKeyUp)
 
-        self.doc.Bind(Document.EVT_ON_SLICE_ADD, self.onDocAddSlice)
-        self.doc.Bind(Document.EVT_ON_SLICE_REMOVE, self.onDocRemoveSlice)
-
         self.SetBackgroundColour(wx.Color(200, 200, 200))
-
-        self.newSelection = wx.Rect()
 
         self.SetDoubleBuffered(True)
 
         self.resize = False
-
-        self.selectors = []
-        self.activeSelector = None
-
-        self.zoom = 1.0
-        self.SetSize((self.doc.cwBitmap.Width, self.doc.cwBitmap.Height))
 
         self.controlHeld = False # CTRL being held?
         self.leftMouseHeld = False
@@ -134,6 +123,22 @@ class SpriteSheetPanel(wx.Panel):
         self.gridHeight = 64
         self.horCells = 4
         self.verCells = 2
+
+        self.setDocument(doc)
+
+    def setDocument(self, doc):
+        self.doc = doc
+        self.doc.Bind(Document.EVT_ON_SLICE_ADD, self.onDocAddSlice)
+        self.doc.Bind(Document.EVT_ON_SLICE_REMOVE, self.onDocRemoveSlice)
+
+        self.selectors = []
+        self.activeSelector = None
+        self.newSelection = wx.Rect()
+
+        self.setZoom(1.0)
+
+        self.SetSize((self.doc.cwBitmap.Width, self.doc.cwBitmap.Height))
+        self.Refresh()
 
     def onScroll(self, e):
         if not self.controlHeld:
@@ -358,13 +363,8 @@ class AnimPanel(wx.Panel):
     def __init__(self, parent, doc):
         wx.Panel.__init__(self, parent)
 
-        self.doc = doc
-
-        img = self.doc.cwImage
-
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.onTimerUpdate, self.timer)
-        self.frame = 0
         self.animSpeed = 500
 
         self.drawPanel = wx.Panel(self)
@@ -399,6 +399,12 @@ class AnimPanel(wx.Panel):
 
         self.animWidth = 128
         self.animHeight = 128
+
+        self.setDocument(doc)
+
+    def setDocument(self, doc):
+        self.doc = doc
+        self.frame = 0
 
     def onAnimSpeedChange(self, e):
         try:
@@ -443,10 +449,6 @@ class SliceGroupPanel(wx.Panel):
         self.list.SetColumnWidth(0, wx.LIST_AUTOSIZE_USEHEADER)
         self.list.SetColumnWidth(1, wx.LIST_AUTOSIZE)
 
-        self.doc.Bind(Document.EVT_ON_SLICE_ADD, self.onDocAddSlice)
-        self.doc.Bind(Document.EVT_ON_SLICE_REMOVE, self.onDocRemoveSlice)
-        self.doc.Bind(Document.EVT_ON_SLICE_SWAP, self.onDocSwapSlice)
-
         buttonPanel = wx.Panel(self)
         buttonSizer = wx.BoxSizer(wx.HORIZONTAL)
         upButton = wx.BitmapButton(buttonPanel, wx.ID_UP, wx.ArtProvider.GetBitmap(wx.ART_GO_UP))
@@ -467,10 +469,18 @@ class SliceGroupPanel(wx.Panel):
         sizer.Add(buttonPanel)
         self.SetSizer(sizer)
 
-        self.slices = []
-
         self.imageListScale = 0.5
         self.imageListSize = wx.Size(0, 0)
+
+        self.setDocument(doc)
+
+    def setDocument(self, doc):
+        self.doc = doc
+        self.slices = []
+        self.doc.Bind(Document.EVT_ON_SLICE_ADD, self.onDocAddSlice)
+        self.doc.Bind(Document.EVT_ON_SLICE_REMOVE, self.onDocRemoveSlice)
+        self.doc.Bind(Document.EVT_ON_SLICE_SWAP, self.onDocSwapSlice)
+        self.list.DeleteAllItems()
 
     def onDocAddSlice(self, e):
         self.addSlice(e.slice)
