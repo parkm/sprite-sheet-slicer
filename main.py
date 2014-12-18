@@ -90,9 +90,8 @@ class Slice():
         self.bitmap = self.doc.cwImage.GetSubImage(self.rect).ConvertToBitmap()
 
 class SpriteSheetPanel(wx.Panel):
-    def __init__(self, parent, doc):
+    def __init__(self, parent):
         wx.Panel.__init__(self, parent)
-        self.doc = doc
 
         self.Bind(wx.EVT_PAINT, self.onPaint)
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.onEraseBack)
@@ -124,7 +123,7 @@ class SpriteSheetPanel(wx.Panel):
         self.horCells = 4
         self.verCells = 2
 
-        self.setDocument(doc)
+        self.doc = None
 
     def setDocument(self, doc):
         self.doc = doc
@@ -184,6 +183,8 @@ class SpriteSheetPanel(wx.Panel):
 
     # Creates a selection: creates slice and adds to slice group, adds selector and crops.
     def createSelection(self, rect):
+        if self.doc == None: return
+
         if (abs(rect.Width) < 1 and abs(rect.Height) < 1):
             return False
 
@@ -297,6 +298,8 @@ class SpriteSheetPanel(wx.Panel):
             self.Refresh()
 
     def onPaint(self, e):
+        if self.doc == None: return
+
         dc = wx.PaintDC(self)
         dc.Clear()
         dc.SetUserScale(self.zoom, self.zoom)
@@ -360,7 +363,7 @@ class SpriteSheetPanel(wx.Panel):
         dc.EndDrawing()
 
 class AnimPanel(wx.Panel):
-    def __init__(self, parent, doc):
+    def __init__(self, parent):
         wx.Panel.__init__(self, parent)
 
         self.timer = wx.Timer(self)
@@ -400,7 +403,7 @@ class AnimPanel(wx.Panel):
         self.animWidth = 128
         self.animHeight = 128
 
-        self.setDocument(doc)
+        self.doc = None
 
     def setDocument(self, doc):
         self.doc = doc
@@ -423,6 +426,7 @@ class AnimPanel(wx.Panel):
         self.drawPanel.Refresh()
 
     def onTimerUpdate(self, e):
+        if self.doc == None: return
         self.frame += 1
         if self.frame > len(self.doc.activeGroup.slices)-1:
             self.frame = 0
@@ -434,14 +438,14 @@ class AnimPanel(wx.Panel):
         dc = wx.PaintDC(self.drawPanel)
         dc.Clear()
 
+        if self.doc == None: return
         if len(self.doc.activeGroup.slices) > 0:
             slice = self.doc.activeGroup.slices[self.frame].bitmap
             dc.DrawBitmap(slice, (self.animWidth/2) - (slice.Width/2), (self.animHeight/2) - (slice.Height/2));
 
 class SliceGroupPanel(wx.Panel):
-    def __init__(self, parent, doc):
+    def __init__(self, parent):
         wx.Panel.__init__(self, parent)
-        self.doc = doc
 
         self.list = wx.ListCtrl(self, style=wx.LC_REPORT|wx.BORDER_SUNKEN|wx.LC_SINGLE_SEL)
         self.list.InsertColumn(0, 'slice')
@@ -472,7 +476,7 @@ class SliceGroupPanel(wx.Panel):
         self.imageListScale = 0.5
         self.imageListSize = wx.Size(0, 0)
 
-        self.setDocument(doc)
+        self.doc = None
 
     def setDocument(self, doc):
         self.doc = doc
@@ -552,18 +556,21 @@ class SliceGroupPanel(wx.Panel):
             self.list.SetStringItem(i, 1, str(i))
 
     def onUpButton(self, e):
+        if self.doc == None: return
         selectedIndex = self.list.GetFirstSelected()
         if (selectedIndex <= 0): return
         self.doc.swapSlice(self.slices[selectedIndex-1], self.slices[selectedIndex])
         self.list.Select(selectedIndex-1)
 
     def onDownButton(self, e):
+        if self.doc == None: return
         selectedIndex = self.list.GetFirstSelected()
         if (selectedIndex >= len(self.slices)-1): return
         self.doc.swapSlice(self.slices[selectedIndex+1], self.slices[selectedIndex])
         self.list.Select(selectedIndex+1)
 
     def onDeleteButton(self, e):
+        if self.doc == None: return
         selectedIndex = self.list.GetFirstSelected()
         if selectedIndex < 0: return
         self.doc.removeSlice(self.slices[selectedIndex])
@@ -604,11 +611,9 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.onExportSliceButton, menuExportPng)
         self.Bind(wx.EVT_MENU, self.onDeleteAllButton, menuDeleteAll)
 
-        self.doc = Document('cindy.png')
-
         self.sheetPanelSizer = wx.BoxSizer(wx.VERTICAL)
         self.sheetPanelScroller = wx.lib.scrolledpanel.ScrolledPanel(self)
-        self.sheetPanel = SpriteSheetPanel(self.sheetPanelScroller, self.doc)
+        self.sheetPanel = SpriteSheetPanel(self.sheetPanelScroller)
 
         self.sheetPanelSizer.Add(self.sheetPanel, 0, wx.ALIGN_CENTER)
         self.sheetPanelScroller.SetSizer(self.sheetPanelSizer)
@@ -618,9 +623,9 @@ class MainWindow(wx.Frame):
 
         rightPanelSizer = wx.BoxSizer(wx.VERTICAL)
         rightPanel = wx.Panel(self)
-        self.animPanel = AnimPanel(rightPanel, self.doc)
+        self.animPanel = AnimPanel(rightPanel)
 
-        self.sliceGroupPanel = SliceGroupPanel(rightPanel, self.doc)
+        self.sliceGroupPanel = SliceGroupPanel(rightPanel)
 
         rightPanelSizer.Add(self.animPanel, 0, wx.EXPAND)
         rightPanelSizer.Add(self.sliceGroupPanel , 2, wx.EXPAND)
@@ -656,6 +661,8 @@ class MainWindow(wx.Frame):
         sizer.Add(self.sheetPanelScroller, 2, wx.EXPAND)
         sizer.Add(rightPanel, 0, wx.EXPAND)
         self.SetSizer(sizer)
+
+        self.doc = None
 
         self.Show(True)
 
@@ -699,6 +706,7 @@ class MainWindow(wx.Frame):
         except ValueError: return
 
     def onExportSliceButton(self, e):
+        if self.doc == None: return
         dlg = wx.FileDialog(self, 'Export Slices', './', '', '*.png', wx.SAVE)
         if dlg.ShowModal() == wx.ID_OK:
             filePaths = []
@@ -723,6 +731,7 @@ class MainWindow(wx.Frame):
         dlg.Destroy()
 
     def onExportJsonButton(self, e):
+        if self.doc == None: return
         dlg = wx.FileDialog(self, 'Export JSON', './', '', '*.json', wx.SAVE)
         if dlg.ShowModal() == wx.ID_OK:
             filePath = os.path.join(dlg.GetDirectory(), dlg.GetFilename())
@@ -739,6 +748,7 @@ class MainWindow(wx.Frame):
         dlg.Destroy()
 
     def onImportJsonButton(self, e):
+        if self.doc == None: return
         dlg = wx.FileDialog(self, 'Import JSON', './', '', '*.json', wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             filePath = os.path.join(dlg.GetDirectory(), dlg.GetFilename())
@@ -747,6 +757,7 @@ class MainWindow(wx.Frame):
         dlg.Destroy()
 
     def onDeleteAllButton(self, e):
+        if self.doc == None: return
         # TODO: This is slow. Make a special delete all event in Document.
         # Clone so we don't remove items of the list we iterate through.
         toRemove = list(self.doc.activeGroup.slices)
