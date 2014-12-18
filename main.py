@@ -610,7 +610,7 @@ class MainWindow(wx.Frame):
         self.sheetPanelScroller = wx.lib.scrolledpanel.ScrolledPanel(self)
         self.sheetPanel = SpriteSheetPanel(self.sheetPanelScroller, self.doc)
 
-        self.sheetPanelSizer.Add(self.sheetPanel, 0, wx.FIXED_MINSIZE)
+        self.sheetPanelSizer.Add(self.sheetPanel, 0, wx.ALIGN_CENTER)
         self.sheetPanelScroller.SetSizer(self.sheetPanelSizer)
         self.sheetPanelScroller.SetupScrolling()
 
