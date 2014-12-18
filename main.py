@@ -579,6 +579,8 @@ class MainWindow(wx.Frame):
 
         # File Menu
         # The ampersand is the acceleration key.
+        menuOpen = fileMenu.Append(wx.ID_OPEN, 'Open...', 'Open image to edit.')
+        fileMenu.AppendSeparator()
         menuImportJson = fileMenu.Append(wx.NewId(), 'Import JSON...', 'Create slices from JSON.')
         menuExportJson = fileMenu.Append(wx.NewId(), 'Export to &JSON...', 'Export slices to JSON.')
         menuExportPng = fileMenu.Append(wx.NewId(), 'Export to &PNG...', 'Export slices to PNG images.')
@@ -594,6 +596,7 @@ class MainWindow(wx.Frame):
         menuBar.Append(helpMenu, '&Help')
         self.SetMenuBar(menuBar)
 
+        self.Bind(wx.EVT_MENU, self.onOpen, menuOpen)
         self.Bind(wx.EVT_MENU, self.onAbout, menuAbout)
         self.Bind(wx.EVT_MENU, self.onExit, menuExit)
         self.Bind(wx.EVT_MENU, self.onImportJsonButton, menuImportJson)
@@ -657,6 +660,15 @@ class MainWindow(wx.Frame):
         self.Show(True)
 
         self.sheetPanel.SetFocus()
+
+    def onOpen(self, e):
+        dlg = wx.FileDialog(self, 'Open Image', './', '', '*.png', wx.OPEN)
+        if dlg.ShowModal() == wx.ID_OK:
+            filePath = os.path.join(dlg.GetDirectory(), dlg.GetFilename())
+            self.doc = Document(filePath)
+            self.sheetPanel.setDocument(self.doc)
+            self.sliceGroupPanel.setDocument(self.doc)
+            self.animPanel.setDocument(self.doc)
 
     def onGridButton(self, e):
         self.sheetPanel.gridSelection = not self.sheetPanel.gridSelection
