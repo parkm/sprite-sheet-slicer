@@ -3,6 +3,8 @@ import wx.lib.scrolledpanel
 import wx.lib.newevent
 import json
 import os
+import time
+import spritefinder
 
 class Document(wx.EvtHandler):
     onSliceAddEvent, EVT_ON_SLICE_ADD = wx.lib.newevent.NewEvent()
@@ -14,6 +16,19 @@ class Document(wx.EvtHandler):
 
         self.activeGroup = SpriteGroup()
         self.spriteGroups = [self.activeGroup]
+
+        return
+
+        # Test - Finds and adds all sprites
+        startTime = time.time()
+        spriteBounds = findSprites(self.cwImage)
+        for rect in spriteBounds:
+            self.addSlice(Slice(self, rect))
+        print(time.time() - startTime)
+
+    def addSlicesFromSpriteBounds(self, spriteBounds):
+        for rect in spriteBounds:
+            self.addSlice(Slice(self, rect))
 
     def addSlice(self, slice):
         self.activeGroup.addSlice(slice)
@@ -211,7 +226,7 @@ class SpriteSheetPanel(wx.Panel):
             firstRange = range(img.Height if yFirst else img.Width)
             if reverse: firstRange = reversed(firstRange)
             for i in firstRange:
-                transparent = False
+                hasAlpha = True
                 for j in range(img.Width if yFirst else img.Height):
                     if yFirst:
                         y = i
@@ -219,9 +234,9 @@ class SpriteSheetPanel(wx.Panel):
                     else:
                         x = i
                         y = j
-                    transparent = (img.GetAlpha(x, y) <= 0)
-                    if not transparent: break
-                if not transparent: break
+                    hasAlpha = (img.GetAlpha(x, y) > 0)
+                    if hasAlpha: break
+                if hasAlpha: break
                 out += 1
             if (yFirst and out >= img.Height) or (not yFirst and out >= img.Width):
                 out = 0
@@ -517,7 +532,10 @@ class SliceGroupPanel(wx.Panel):
         # Add the images from the slices. Resize them to fit with the new imageList size.
         for slice in self.slices:
             image = slice.bitmap.ConvertToImage()
-            image = image.Scale(image.Width * self.imageListScale, image.Height * self.imageListScale, wx.IMAGE_QUALITY_HIGH)
+            newWidth = image.Width * self.imageListScale
+            newHeight = image.Height * self.imageListScale
+            if newWidth >= 1 and newHeight >= 1:
+                image = image.Scale(newWidth, newHeight, wx.IMAGE_QUALITY_HIGH)
             image = image.Resize(self.imageListSize, (0, 0))
             self.imageList.Add(image.ConvertToBitmap())
 
@@ -676,6 +694,9 @@ class MainWindow(wx.Frame):
             self.sheetPanel.setDocument(self.doc)
             self.sliceGroupPanel.setDocument(self.doc)
             self.animPanel.setDocument(self.doc)
+
+            fm = spritefinder.FinderModal(self, self.doc)
+            fm.ShowModal()
 
     def onGridButton(self, e):
         self.sheetPanel.gridSelection = not self.sheetPanel.gridSelection
