@@ -703,6 +703,7 @@ class MainWindow(wx.Frame):
         dlg = wx.FileDialog(self, 'Open Image', './', '', '*.png', wx.OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             filePath = os.path.join(dlg.GetDirectory(), dlg.GetFilename())
+            self.SetLabel(dlg.GetFilename())
             self.doc = Document(filePath)
             self.sheetPanel.setDocument(self.doc)
             self.sliceGroupPanel.setDocument(self.doc)
