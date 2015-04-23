@@ -1,5 +1,5 @@
 import wx
-from threading import *
+from threading import Thread
 
 class Pixel():
     def __init__(self, img, x, y):
@@ -174,7 +174,6 @@ class FinderModal(wx.Dialog):
         self.finderThread.abort()
 
     def onSpritesFound(self, e):
-        print('Sprites found! Adding them as slices.')
         self.doc.addSlicesFromSpriteBounds(e.spriteBounds)
         self.Destroy()
 

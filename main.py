@@ -3,12 +3,11 @@ import wx.lib.scrolledpanel
 import wx.lib.newevent
 import json
 import os
-import time
 import spritefinder
 
 class Document(wx.EvtHandler):
-    onSliceAddEvent, EVT_ON_SLICE_ADD = wx.lib.newevent.NewEvent()
-    onSliceRemoveEvent, EVT_ON_SLICE_REMOVE = wx.lib.newevent.NewEvent()
+    onSlicesAddEvent, EVT_ON_SLICES_ADD = wx.lib.newevent.NewEvent()
+    onSlicesRemoveEvent, EVT_ON_SLICES_REMOVE = wx.lib.newevent.NewEvent()
     onSliceSwapEvent, EVT_ON_SLICE_SWAP = wx.lib.newevent.NewEvent()
     def __init__(self, fileName):
         wx.EvtHandler.__init__(self)
@@ -17,26 +16,23 @@ class Document(wx.EvtHandler):
         self.activeGroup = SpriteGroup()
         self.spriteGroups = [self.activeGroup]
 
-        return
-
-        # Test - Finds and adds all sprites
-        startTime = time.time()
-        spriteBounds = findSprites(self.cwImage)
-        for rect in spriteBounds:
-            self.addSlice(Slice(self, rect))
-        print(time.time() - startTime)
-
     def addSlicesFromSpriteBounds(self, spriteBounds):
+        slices = []
         for rect in spriteBounds:
-            self.addSlice(Slice(self, rect))
+            slices.append(Slice(self, rect))
+        self.addSlices(slices)
 
-    def addSlice(self, slice):
-        self.activeGroup.addSlice(slice)
-        wx.PostEvent(self, Document.onSliceAddEvent(slice=slice))
+    def addSlices(self, slices):
+        if isinstance(slices, Slice): slices = [slices]
+        for slice in slices:
+            self.activeGroup.addSlice(slice)
+        wx.PostEvent(self, Document.onSlicesAddEvent(slices=slices))
 
-    def removeSlice(self, slice):
-        self.activeGroup.removeSlice(slice)
-        wx.PostEvent(self, Document.onSliceRemoveEvent(slice=slice))
+    def removeSlices(self, slices):
+        if isinstance(slices, Slice): slices = [slices]
+        for slice in slices:
+            self.activeGroup.removeSlice(slice)
+        wx.PostEvent(self, Document.onSlicesRemoveEvent(slices=slices))
 
     def swapSlice(self, sliceA, sliceB):
         indices = self.activeGroup.swapSlice(sliceA, sliceB)
@@ -53,7 +49,7 @@ class Document(wx.EvtHandler):
         for key in sliceData['frames']:
             frames[int(key)] = sliceData['frames'][key]['frame']
         for frame in frames:
-            self.addSlice(Slice(self, wx.Rect(frame['x'], frame['y'], frame['w'], frame['h'])))
+            self.addSlices(Slice(self, wx.Rect(frame['x'], frame['y'], frame['w'], frame['h'])))
 
     def exportJson(self):
         out = {'frames': {}}
@@ -142,8 +138,8 @@ class SpriteSheetPanel(wx.Panel):
 
     def setDocument(self, doc):
         self.doc = doc
-        self.doc.Bind(Document.EVT_ON_SLICE_ADD, self.onDocAddSlice)
-        self.doc.Bind(Document.EVT_ON_SLICE_REMOVE, self.onDocRemoveSlice)
+        self.doc.Bind(Document.EVT_ON_SLICES_ADD, self.onDocAddSlices)
+        self.doc.Bind(Document.EVT_ON_SLICES_REMOVE, self.onDocRemoveSlices)
 
         self.selectors = []
         self.activeSelector = None
@@ -170,7 +166,7 @@ class SpriteSheetPanel(wx.Panel):
         keyCode = e.GetKeyCode()
         if keyCode == wx.WXK_DELETE:
             if self.activeSelector:
-                self.doc.removeSlice(self.activeSelector.slice)
+                self.doc.removeSlices(self.activeSelector.slice)
         if keyCode == wx.WXK_ADD or keyCode == wx.WXK_NUMPAD_ADD:
             self.setZoom(self.zoom + 0.1)
             self.Refresh()
@@ -248,23 +244,30 @@ class SpriteSheetPanel(wx.Panel):
 
         rect = wx.Rect(rect.X + left, rect.Y + top, rect.Width - left - right, rect.Height - top - bottom)
         slice = Slice(self.doc, rect)
-        self.doc.addSlice(slice)
+        self.doc.addSlices(slice)
 
         return True
 
-    def onDocAddSlice(self, e):
-        self.activeSelector = Selector(e.slice.rect, e.slice)
-        self.selectors.append(self.activeSelector)
+    def onDocAddSlices(self, e):
+        first = True
+        for slice in e.slices:
+            selector = Selector(slice.rect, slice)
+            if first:
+                self.activeSelector = selector
+                first = False
+            self.selectors.append(selector)
         self.Refresh()
         e.Skip()
 
-    def onDocRemoveSlice(self, e):
-        for sel in self.selectors:
-            if sel.slice == e.slice:
-                self.selectors.remove(sel)
-                self.activeSelector = None
-                break
+    def onDocRemoveSlices(self, e):
+        for slice in e.slices:
+            for sel in self.selectors:
+                if sel.slice == slice:
+                    self.selectors.remove(sel)
+                    break
+        self.activeSelector = None
         self.Refresh()
+        e.Skip()
 
     def onMouseUp(self, e):
         self.resize = False
@@ -496,17 +499,19 @@ class SliceGroupPanel(wx.Panel):
     def setDocument(self, doc):
         self.doc = doc
         self.slices = []
-        self.doc.Bind(Document.EVT_ON_SLICE_ADD, self.onDocAddSlice)
-        self.doc.Bind(Document.EVT_ON_SLICE_REMOVE, self.onDocRemoveSlice)
+        self.doc.Bind(Document.EVT_ON_SLICES_ADD, self.onDocAddSlices)
+        self.doc.Bind(Document.EVT_ON_SLICES_REMOVE, self.onDocRemoveSlices)
         self.doc.Bind(Document.EVT_ON_SLICE_SWAP, self.onDocSwapSlice)
         self.list.DeleteAllItems()
 
-    def onDocAddSlice(self, e):
-        self.addSlice(e.slice)
+    def onDocAddSlices(self, e):
+        self.addSlices(e.slices)
         e.Skip()
-    def onDocRemoveSlice(self, e):
-        self.removeSlice(e.slice)
+
+    def onDocRemoveSlices(self, e):
+        self.removeSlices(e.slices)
         e.Skip()
+
     def onDocSwapSlice(self, e):
         tmpBitmap = self.imageList.GetBitmap(e.indexA)
         tmpSlice = self.slices[e.indexA]
@@ -551,19 +556,24 @@ class SliceGroupPanel(wx.Panel):
             if bitmap.Height > height: height = bitmap.Height
         return wx.Size(width, height)
 
-    def addSlice(self, slice):
-        self.slices.append(slice)
+    def addSlices(self, slices):
+        index = len(self.slices)
+
+        for slice in slices: self.slices.append(slice)
 
         largestSize = self.getLargestSize()
         self.createImageList(largestSize)
 
-        index = len(self.slices)-1
-        self.list.InsertStringItem(index, '', index)
-        self.list.SetStringItem(index, 1, str(index))
+        for slice in slices:
+            self.list.InsertStringItem(index, '', index)
+            self.list.SetStringItem(index, 1, str(index))
+            index += 1
 
-    def removeSlice(self, slice):
+    def removeSlices(self, slices):
         self.list.DeleteAllItems()
-        self.slices.remove(slice)
+
+        for slice in slices:
+            self.slices.remove(slice)
 
         # Find largest size again, in case we deleted the largest slice.
         largestSize = self.getLargestSize()
@@ -591,7 +601,7 @@ class SliceGroupPanel(wx.Panel):
         if self.doc == None: return
         selectedIndex = self.list.GetFirstSelected()
         if selectedIndex < 0: return
-        self.doc.removeSlice(self.slices[selectedIndex])
+        self.doc.removeSlices(self.slices[selectedIndex])
 
 class MainWindow(wx.Frame):
     def __init__(self, parent, title):
@@ -779,11 +789,9 @@ class MainWindow(wx.Frame):
 
     def onDeleteAllButton(self, e):
         if self.doc == None: return
-        # TODO: This is slow. Make a special delete all event in Document.
         # Clone so we don't remove items of the list we iterate through.
         toRemove = list(self.doc.activeGroup.slices)
-        for slice in toRemove:
-            self.doc.removeSlice(slice)
+        self.doc.removeSlices(toRemove)
 
     def onAbout(self, e):
         dlg = wx.MessageDialog(self, 'This is where the about stuff goes', 'About this', wx.OK)
