@@ -140,7 +140,7 @@ class SpriteFinderThread(Thread):
 
 class FinderModal(wx.Dialog):
     def __init__(self, parent, doc):
-        wx.Dialog.__init__(self, parent=parent, title='Finding sprites...', size=(320, 100))
+        wx.Dialog.__init__(self, parent=parent, title='Find Sprites', size=(320, 100))
         self.doc = doc
         self.img = doc.cwImage
 

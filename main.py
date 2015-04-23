@@ -622,6 +622,8 @@ class MainWindow(wx.Frame):
         fileMenu.AppendSeparator()
         menuExit = fileMenu.Append(wx.ID_EXIT, 'E&xit', 'Terminate program')
         # Edit Menu
+        menuFindSprites = editMenu.Append(wx.NewId(), 'Find Sprites', 'Finds sprites and adds them as slices.')
+        editMenu.AppendSeparator()
         menuDeleteAll = editMenu.Append(wx.NewId(), 'Delete All Slices', 'Deletes all current slices.')
         # Help Menu
         menuAbout = helpMenu.Append(wx.ID_ABOUT, '&About', 'Info goes here')
@@ -637,6 +639,7 @@ class MainWindow(wx.Frame):
         self.Bind(wx.EVT_MENU, self.onImportJsonButton, menuImportJson)
         self.Bind(wx.EVT_MENU, self.onExportJsonButton, menuExportJson)
         self.Bind(wx.EVT_MENU, self.onExportSliceButton, menuExportPng)
+        self.Bind(wx.EVT_MENU, self.onFindSpritesButton, menuFindSprites)
         self.Bind(wx.EVT_MENU, self.onDeleteAllButton, menuDeleteAll)
 
         self.sheetPanelSizer = wx.BoxSizer(wx.VERTICAL)
@@ -704,9 +707,6 @@ class MainWindow(wx.Frame):
             self.sheetPanel.setDocument(self.doc)
             self.sliceGroupPanel.setDocument(self.doc)
             self.animPanel.setDocument(self.doc)
-
-            fm = spritefinder.FinderModal(self, self.doc)
-            fm.ShowModal()
 
     def onGridButton(self, e):
         self.sheetPanel.gridSelection = not self.sheetPanel.gridSelection
@@ -786,6 +786,11 @@ class MainWindow(wx.Frame):
             with open(filePath, 'r') as file:
                 self.doc.importJson(file.read())
         dlg.Destroy()
+
+    def onFindSpritesButton(self, e):
+        if self.doc == None: return
+        fm = spritefinder.FinderModal(self, self.doc)
+        fm.ShowModal()
 
     def onDeleteAllButton(self, e):
         if self.doc == None: return
