@@ -113,7 +113,7 @@ class SpriteSheetPanel(wx.Panel):
         self.Bind(wx.EVT_KEY_DOWN, self.onKeyDown)
         self.Bind(wx.EVT_KEY_UP, self.onKeyUp)
 
-        self.SetBackgroundColour(wx.Color(200, 200, 200))
+        self.SetBackgroundColour(wx.Colour(200, 200, 200))
 
         self.SetDoubleBuffered(True)
 
@@ -332,11 +332,11 @@ class SpriteSheetPanel(wx.Panel):
         if self.gridSelection:
             for x in range(0, self.horCells):
                 for y in range(0, self.verCells):
-                    dc.BeginDrawing()
-                    dc.SetPen(wx.Pen(wx.Color(20,20,80)))
-                    dc.SetBrush(wx.Brush(wx.Color(70,70,150)))
+                    #dc.BeginDrawing()
+                    dc.SetPen(wx.Pen(wx.Colour(20,20,80)))
+                    dc.SetBrush(wx.Brush(wx.Colour(70,70,150)))
                     dc.DrawRectangle(self.mouseX + (x * self.gridWidth), self.mouseY + (y * self.gridHeight), self.gridWidth, self.gridHeight)
-                    dc.EndDrawing()
+                    #dc.EndDrawing()
 
         for sel in self.selectors:
             rect = sel.rect
@@ -365,20 +365,20 @@ class SpriteSheetPanel(wx.Panel):
     def onEraseBack(self, e): pass # Do nothing, to avoid flashing on MSWin
 
     def drawSelectorBack(self, dc, x, y, w, h):
-        dc.BeginDrawing()
+        #dc.BeginDrawing()
         dc.SetPen(wx.TRANSPARENT_PEN)
-        dc.SetBrush(wx.Brush(wx.Color(90, 200, 90, 0)))
+        dc.SetBrush(wx.Brush(wx.Colour(90, 200, 90, 0)))
         # set x, y, w, h for rectangle
         dc.DrawRectangle(x, y, w, h)
-        dc.EndDrawing()
+        #dc.EndDrawing()
 
     def drawSelectorActive(self, dc, x, y, w, h):
-        dc.BeginDrawing()
+        #dc.BeginDrawing()
         dc.SetPen(wx.Pen('red'))
         dc.SetBrush(wx.TRANSPARENT_BRUSH)
         # set x, y, w, h for rectangle
         dc.DrawRectangle(x-1, y-1, w+2, h+2)
-        dc.EndDrawing()
+        #dc.EndDrawing()
 
 class AnimPanel(wx.Panel):
     def __init__(self, parent):
@@ -650,7 +650,7 @@ class MainWindow(wx.Frame):
         self.sheetPanelScroller.SetSizer(self.sheetPanelSizer)
         self.sheetPanelScroller.SetupScrolling()
 
-        self.sheetPanelScroller.SetBackgroundColour(wx.Color(40, 40, 40))
+        self.sheetPanelScroller.SetBackgroundColour(wx.Colour(40, 40, 40))
 
         rightPanelSizer = wx.BoxSizer(wx.VERTICAL)
         rightPanel = wx.Panel(self)
@@ -700,7 +700,7 @@ class MainWindow(wx.Frame):
         self.sheetPanel.SetFocus()
 
     def onOpen(self, e):
-        dlg = wx.FileDialog(self, 'Open Image', './', '', '*.png', wx.OPEN)
+        dlg = wx.FileDialog(self, 'Open Image', './', '', '*.png', wx.FD_OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             filePath = os.path.join(dlg.GetDirectory(), dlg.GetFilename())
             self.SetLabel(dlg.GetFilename())
@@ -781,7 +781,7 @@ class MainWindow(wx.Frame):
 
     def onImportJsonButton(self, e):
         if self.doc == None: return
-        dlg = wx.FileDialog(self, 'Import JSON', './', '', '*.json', wx.OPEN)
+        dlg = wx.FileDialog(self, 'Import JSON', './', '', '*.json', wx.FD_OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             filePath = os.path.join(dlg.GetDirectory(), dlg.GetFilename())
             with open(filePath, 'r') as file:
